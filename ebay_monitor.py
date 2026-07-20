@@ -110,10 +110,7 @@ def prime_session(domain: str):
 # Grade classification
 # ---------------------------------------------------------------------------
 
-# Any of these tokens in a title means the card is (claimed to be) graded/slabbed.
-# NB: deliberately excludes ambiguous grader acronyms that collide with real card
-# words — "ACE" (the One Piece character Portgas D. Ace), "TAG" ("with tag"),
-# "ARS" — which would otherwise misclassify raw cards as graded and drop them.
+# Unambiguous grader tokens — their mere presence means the card is slabbed.
 GRADING_COMPANIES = [
     "PSA", "BGS", "BECKETT", "CGC", "SGC", "GMA", "HGA", "KSA"
 ]
@@ -122,10 +119,14 @@ GRADING_COMPANIES = [
 _PSA10 = re.compile(r"\bPSA\s*10\b")
 _BGS95 = re.compile(r"\b(?:BGS|BECKETT)\s*9\.5\b")
 _BGS10 = re.compile(r"\b(?:BGS|BECKETT)\s*10\b")
-# "is this graded at all?" — a company token near a number, or a lone company token.
+# "is this graded at all?" — an unambiguous company token anywhere in the title.
 _GRADED_HINT = re.compile(
     r"\b(?:" + "|".join(GRADING_COMPANIES) + r")\b", re.IGNORECASE
 )
+# ACE and TAG are real graders but collide with the character "Ace" and the word
+# "tag", so only count them as graders when immediately followed by a grade number
+# ("ACE 10", "TAG 9.5"). Bare "Portgas D. Ace" / "with tag" stay ungraded.
+_GRADED_NUM = re.compile(r"\b(?:ACE|TAG)\s*(?:10|\d(?:\.\d)?)\b", re.IGNORECASE)
 
 
 def classify_grade(title: str) -> str:
@@ -137,7 +138,7 @@ def classify_grade(title: str) -> str:
         return "bgs9.5"
     if _BGS10.search(t):
         return "bgs10"
-    if _GRADED_HINT.search(title):
+    if _GRADED_HINT.search(title) or _GRADED_NUM.search(title):
         return "other_graded"
     return "ungraded"
 
