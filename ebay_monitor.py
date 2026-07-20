@@ -24,6 +24,8 @@ import sys
 import time
 from datetime import datetime, timezone
 
+from urllib.parse import urlencode
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -109,8 +111,11 @@ def prime_session(domain: str):
 # ---------------------------------------------------------------------------
 
 # Any of these tokens in a title means the card is (claimed to be) graded/slabbed.
+# NB: deliberately excludes ambiguous grader acronyms that collide with real card
+# words — "ACE" (the One Piece character Portgas D. Ace), "TAG" ("with tag"),
+# "ARS" — which would otherwise misclassify raw cards as graded and drop them.
 GRADING_COMPANIES = [
-    "PSA", "BGS", "BECKETT", "CGC", "SGC", "ACE", "TAG", "GMA", "HGA", "ARS", "KSA"
+    "PSA", "BGS", "BECKETT", "CGC", "SGC", "GMA", "HGA", "KSA"
 ]
 
 # Buckets we can detect. Order matters: check specific grades first.
@@ -206,13 +211,20 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
+# Normalize the constant exclude list once, not per-listing.
+_DEFAULT_EXCLUDE_NORM = [_norm(t) for t in DEFAULT_EXCLUDE if _norm(t)]
+
+
 def matches_filters(title: str, require, exclude) -> bool:
     """True if title contains every 'require' term and none of the 'exclude' terms."""
     nt = _norm(title)
     for term in (require or []):
         if _norm(term) not in nt:
             return False
-    for term in list(DEFAULT_EXCLUDE) + list(exclude or []):
+    for t in _DEFAULT_EXCLUDE_NORM:
+        if t in nt:
+            return False
+    for term in (exclude or []):
         t = _norm(term)
         if t and t in nt:
             return False
@@ -258,9 +270,17 @@ GRADE_COMPANY = {
 ITEM_ID_RE = re.compile(r"/itm/(?:[^/]+/)?(\d{9,})")
 
 
+def _cell_text(li, selector):
+    """Collapsed text of the first element matching selector inside li, or None."""
+    e = li.select_one(selector)
+    if not e:
+        return None
+    val = " ".join(e.get_text(" ", strip=True).split())
+    return val or None
+
+
 def build_search_url(domain: str, query: str) -> str:
     # _sop=10 -> sort by "newly listed"; LH_BIN not forced so auctions show too.
-    from urllib.parse import urlencode
     params = {
         "_nkw": query,
         "_sop": "10",     # newest first
@@ -345,17 +365,11 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
             # bump eBay's tiny grid thumbnail (s-l140/225) up to a crisp 500px.
             image = re.sub(r"s-l\d+", "s-l500", image)
 
-        def _txt(selector):
-            e = li.select_one(selector)
-            if not e:
-                return None
-            val = " ".join(e.get_text(" ", strip=True).split())
-            return val or None
-
-        condition = _txt(".s-item__subtitle") or _txt(".SECONDARY_INFO")
-        shipping = _txt(".s-item__shipping") or _txt(".s-item__logisticsCost")
-        bids = _txt(".s-item__bids") or _txt(".s-item__bidCount")
-        fmt = _txt(".s-item__purchase-options-with-icon") or _txt(".s-item__dynamic.s-item__buyItNowOption")
+        condition = _cell_text(li, ".s-item__subtitle") or _cell_text(li, ".SECONDARY_INFO")
+        shipping = _cell_text(li, ".s-item__shipping") or _cell_text(li, ".s-item__logisticsCost")
+        bids = _cell_text(li, ".s-item__bids") or _cell_text(li, ".s-item__bidCount")
+        fmt = (_cell_text(li, ".s-item__purchase-options-with-icon")
+               or _cell_text(li, ".s-item__dynamic.s-item__buyItNowOption"))
 
         seen_ids.add(item_id)
         listings.append({
@@ -502,13 +516,21 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False):
             print(f"[{ts}] [{name}] fetch error: {e}", file=sys.stderr)
             continue
 
+        # Load this watch's already-seen ids in a single query, then dedup in
+        # memory (cheaper than a SELECT per listing).
+        seen_ids = {row[0] for row in
+                    conn.execute("SELECT item_id FROM seen WHERE watch=?", (name,))}
+
         # First run for this watch: seed as seen silently (unless told otherwise / dry-run).
-        seeding = not watch_has_history(conn, name) and not notify_existing and not dry_run
+        seeding = not seen_ids and not notify_existing and not dry_run
         matched = 0
         new_count = 0
         lang_pref = watch.get("language", "english")
         require = watch.get("require", [])
         exclude = watch.get("exclude", [])
+        to_seed = []
+        now_iso = datetime.now(timezone.utc).isoformat()
+
         for lst in listings:
             if not matches_filters(lst["title"], require, exclude):
                 continue
@@ -521,8 +543,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False):
                 continue
             matched += 1
 
-            if is_seen(conn, name, lst["item_id"]):
+            item_id = lst["item_id"]
+            if item_id in seen_ids:
                 continue
+            seen_ids.add(item_id)
 
             if dry_run:
                 print(f"[DRY] [{name}] {GRADE_LABELS[grade]:16} {lst['price_str']:>12}  {lst['title'][:70]}  {lst['url']}")
@@ -530,7 +554,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False):
                 continue
 
             if seeding:
-                mark_seen(conn, name, lst["item_id"], grade)
+                to_seed.append((name, item_id, grade, now_iso))
                 continue
 
             # Genuinely new + wanted -> notify.
@@ -543,13 +567,22 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False):
                     print(f"[{ts}] [{name}] notified: {GRADE_LABELS[grade]} {lst['price_str']} {lst['url']}")
                 except Exception as e:
                     print(f"[{ts}] [{name}] discord error: {e}", file=sys.stderr)
-                    continue  # don't mark seen so we retry next pass
-            mark_seen(conn, name, lst["item_id"], grade)
+                    seen_ids.discard(item_id)  # don't mark seen so we retry next pass
+                    continue
+            mark_seen(conn, name, item_id, grade)
             new_count += 1
             time.sleep(0.4)  # be gentle with the webhook
 
+        # Batch the first-run seeding into one transaction (one commit, not N).
+        if to_seed:
+            conn.executemany(
+                "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen) VALUES (?,?,?,?)",
+                to_seed,
+            )
+            conn.commit()
+
         if seeding:
-            print(f"[{ts}] [{name}] first run: seeded {matched} existing matched listing(s) as seen (no alerts).")
+            print(f"[{ts}] [{name}] first run: seeded {len(to_seed)} existing matched listing(s) as seen (no alerts).")
         else:
             print(f"[{ts}] [{name}] {len(listings)} scraped, {matched} matched wanted grades, {new_count} new.")
 
