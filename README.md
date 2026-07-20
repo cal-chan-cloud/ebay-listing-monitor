@@ -5,10 +5,13 @@ Discord notification for each new listing that matches the grade buckets you car
 about. The notification includes the **price**, a **link to the listing**, and the
 **grade + grading company** (or "Ungraded").
 
-Currently watching (English unless noted):
-- **Luffy ST26-005 SP** — ungraded / PSA 10 / BGS 10 / BGS 9.5
+Currently watching (English unless noted; grades: ungraded / PSA 10 / BGS 10 / BGS 9.5):
+- **Luffy ST26-005 SP**
 - **Sanji OP10-005 Flagship Promo** — any language (JP/Asia promo), Flagship-only
-- **Luffy OP05-119 SEC (Alt / Manga Art)** — ungraded / PSA 10 / BGS 10 / BGS 9.5
+- **Luffy OP05-119 SEC (Alt / Manga Art)**
+- **Nami OP06-101 SP Alt Art (500 Years)** — also catches the OP07-101 numbering
+- **Chopper ST01-006 1st Anniversary** — also catches the "#006" numbering
+- **Nami OP15-086 Alt Art** — alt art only (not the base SR foil)
 
 ## ☁️ Cloud deployment (primary — runs even when your PC is off)
 
@@ -124,6 +127,22 @@ Add entries to the `watches` array in `config.json`:
 }
 ```
 
+- `queries` — a **list** of search phrasings, all searched and merged/deduped.
+  Broader/alternate wordings surface differently-titled listings of the same card;
+  the require/grade filters keep them precise. (`query`, a single string, still works.)
+- `match_any` — **name-fallback / multi-signature matching.** A list of signatures;
+  a listing matches if it satisfies ANY one. Each signature is a require-list (same
+  format as `require`). Use one signature keyed on the card number and another on
+  character-name + descriptors, so you also catch listings that number the card
+  differently (e.g. O-Nami as OP06-101 *or* OP07-101) or omit the number entirely:
+  ```json
+  "match_any": [
+    [["op06-101", "op07-101"], ["500 years", "op07"]],
+    [["nami", "o-nami"], ["500 years", "op07"], ["sp", "alt art"]]
+  ]
+  ```
+  When `match_any` is set it replaces `require`. `exclude`, lot-detection, grade and
+  language filters still apply.
 - `query` — what gets typed into eBay search. Keep it fairly broad; eBay
   fuzzy-matches, so use `require` to pin the exact card.
 - `require` — **list of terms that must ALL appear in the title** (case- and
