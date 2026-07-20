@@ -215,6 +215,19 @@ def _norm(s: str) -> str:
 _DEFAULT_EXCLUDE_NORM = [_norm(t) for t in DEFAULT_EXCLUDE if _norm(t)]
 
 
+# A title with 2+ *distinct* card numbers (e.g. "OP12-015 + ST26-005 + OP02-062")
+# is a multi-card lot/bundle, not the single card a watch is tracking. We require
+# the dash form (OP06-101) — real lots use it, and it avoids false hits on set
+# code + year adjacency like "OP15 2026".
+_CARDNUM_RE = re.compile(r"\b[a-z]{2,4}\d{1,2}-\d{2,4}\b", re.IGNORECASE)
+
+
+def is_lot(title: str) -> bool:
+    """True if the title references two or more different card numbers."""
+    nums = {m.lower() for m in _CARDNUM_RE.findall(title)}
+    return len(nums) >= 2
+
+
 def matches_filters(title: str, require, exclude) -> bool:
     """True if title contains every 'require' term and none of the 'exclude' terms."""
     nt = _norm(title)
@@ -558,7 +571,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False):
         to_seed = []
         now_iso = datetime.now(timezone.utc).isoformat()
 
+        allow_lots = watch.get("allow_lots", False)
         for lst in listings:
+            if is_lot(lst["title"]) and not allow_lots:
+                continue
             if not matches_filters(lst["title"], require, exclude):
                 continue
             grade = classify_grade(lst["title"])

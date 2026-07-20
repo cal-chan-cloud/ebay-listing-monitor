@@ -31,9 +31,9 @@
       "max_price": null
     },
     {
-      "name": "Nami OP06-101 SP",
-      "query": "nami op06-101 sp",
-      "require": ["op06-101"],
+      "name": "Nami OP06-101 SP Alt Art (500 Years)",
+      "query": "nami op06-101 500 years",
+      "require": ["op06-101", "500 years"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
       "language": "english",
       "min_price": null,
