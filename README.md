@@ -5,7 +5,42 @@ Discord notification for each new listing that matches the grade buckets you car
 about. The notification includes the **price**, a **link to the listing**, and the
 **grade + grading company** (or "Ungraded").
 
-Currently watching: **Luffy ST26-005 SP** — **English only**, ungraded / PSA 10 / BGS 10 / BGS 9.5.
+Currently watching (English unless noted):
+- **Luffy ST26-005 SP** — ungraded / PSA 10 / BGS 10 / BGS 9.5
+- **Sanji OP10-005 Flagship Promo** — any language (JP/Asia promo), Flagship-only
+- **Luffy OP05-119 SEC (Alt / Manga Art)** — ungraded / PSA 10 / BGS 10 / BGS 9.5
+
+## ☁️ Cloud deployment (primary — runs even when your PC is off)
+
+This monitor runs in the cloud on **GitHub Actions**, so it works 24/7 regardless
+of whether any local machine is on:
+
+- **Repo:** https://github.com/cal-chan-cloud/ebay-listing-monitor (public)
+- **Schedule:** `.github/workflows/monitor.yml` runs `ebay_monitor.py --once` every
+  ~5 minutes (GitHub may delay a few minutes under load).
+- **Webhook:** stored as the encrypted GitHub Actions secret `DISCORD_WEBHOOK_URL`
+  — it is **not** in the public code (`config.json`'s `discord_webhook_url` is left
+  blank; the script reads the env var first).
+- **State:** `seen.db` lives in the repo. When a run finds new listings it commits
+  the updated `seen.db` back, so no listing is ever alerted twice.
+
+Manage it:
+```
+gh workflow run monitor.yml -R cal-chan-cloud/ebay-listing-monitor     # run now
+gh run list -R cal-chan-cloud/ebay-listing-monitor                     # recent runs
+gh secret set DISCORD_WEBHOOK_URL -R cal-chan-cloud/ebay-listing-monitor --body "<url>"
+```
+
+**To add/change cards:** edit `config.json` and push (`git push`), or just ask.
+The change takes effect on the next scheduled run.
+
+> Notes: The local Windows Task Scheduler job has been **disabled** to avoid
+> duplicate alerts (cloud is now the single source). GitHub disables scheduled
+> workflows after 60 days of *zero* repo activity — the periodic `seen.db` commits
+> on new listings keep it alive; if listings ever go quiet that long, click
+> **Run workflow** once (or push any commit) to re-arm it.
+
+## Local setup (optional / fallback)
 
 ## Setup
 
@@ -34,7 +69,14 @@ current listings as "seen" so you don't get flooded — you'll only be alerted o
 listings posted *after* that. To instead alert on everything already up, run once
 with `--notify-existing`.
 
-### Windows Task Scheduler (already set up)
+### Windows Task Scheduler (installed but DISABLED)
+
+> ⚠️ This local task is currently **Disabled** because the cloud deployment above
+> is now the primary runner. Running both would send duplicate Discord alerts.
+> Re-enable with `Enable-ScheduledTask "eBay Luffy Monitor"` **only if** you also
+> disable the GitHub Actions schedule. If you re-enable it, set the webhook via a
+> Windows env var (`setx DISCORD_WEBHOOK_URL "<url>"`) since it's no longer in
+> `config.json`.
 
 A scheduled task named **"eBay Luffy Monitor"** is installed. It runs
 `pythonw.exe ebay_monitor.py --once` **every 5 minutes** while you are logged in,
