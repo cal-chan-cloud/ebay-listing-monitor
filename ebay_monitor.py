@@ -341,6 +341,10 @@ def parse_price(text: str):
     return text, low
 
 
+def _fmt_price(v):
+    return f"${v:,.2f}" if v is not None else "N/A"
+
+
 def _looks_blocked(text: str) -> bool:
     """eBay's soft block ('Pardon Our Interruption') returns HTTP 200 with no
     listings — detect it so we can re-prime and retry instead of reporting 0."""
@@ -409,11 +413,17 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
             # bump eBay's tiny grid thumbnail (s-l140/225) up to a crisp 500px.
             image = re.sub(r"s-l\d+", "s-l500", image)
 
-        condition = _cell_text(li, ".s-item__subtitle") or _cell_text(li, ".SECONDARY_INFO")
+        # Bid count identifies auctions. eBay keeps renaming the CSS class
+        # (.s-item__bids -> .s-card__attribute-row/.su-styled-text), so detect it
+        # from the card's text instead — durable across layout changes.
+        li_text = li.get_text(" ", strip=True)
+        bm = re.search(r"\b(\d[\d,]*)\s+bids?\b", li_text, re.IGNORECASE)
+        bids = bm.group(0) if bm else None
+
+        condition = (_cell_text(li, ".s-item__subtitle") or _cell_text(li, ".SECONDARY_INFO")
+                     or _cell_text(li, ".s-card__subtitle"))
         shipping = _cell_text(li, ".s-item__shipping") or _cell_text(li, ".s-item__logisticsCost")
-        bids = _cell_text(li, ".s-item__bids") or _cell_text(li, ".s-item__bidCount")
-        fmt = (_cell_text(li, ".s-item__purchase-options-with-icon")
-               or _cell_text(li, ".s-item__dynamic.s-item__buyItNowOption"))
+        fmt = _cell_text(li, ".s-item__purchase-options-with-icon")
 
         seen_ids.add(item_id)
         listings.append({
@@ -462,8 +472,16 @@ def db_connect():
     conn.execute(
         "CREATE TABLE IF NOT EXISTS seen ("
         "  watch TEXT, item_id TEXT, grade TEXT, first_seen TEXT,"
+        "  price REAL, price_str TEXT,"
         "  PRIMARY KEY (watch, item_id))"
     )
+    # Migrate older DBs that predate the price columns.
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(seen)")}
+    if "price" not in cols:
+        conn.execute("ALTER TABLE seen ADD COLUMN price REAL")
+    if "price_str" not in cols:
+        conn.execute("ALTER TABLE seen ADD COLUMN price_str TEXT")
+    conn.commit()
     return conn
 
 
@@ -472,10 +490,11 @@ def is_seen(conn, watch, item_id):
     return cur.fetchone() is not None
 
 
-def mark_seen(conn, watch, item_id, grade):
+def mark_seen(conn, watch, item_id, grade, price=None, price_str=None):
     conn.execute(
-        "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen) VALUES (?,?,?,?)",
-        (watch, item_id, grade, datetime.now(timezone.utc).isoformat()),
+        "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str) "
+        "VALUES (?,?,?,?,?,?)",
+        (watch, item_id, grade, datetime.now(timezone.utc).isoformat(), price, price_str),
     )
     conn.commit()
 
@@ -488,6 +507,13 @@ def watch_has_history(conn, watch):
 # ---------------------------------------------------------------------------
 # Discord
 # ---------------------------------------------------------------------------
+
+def is_auction(listing):
+    """True if the listing is an auction (eBay shows a bid count on auctions only)."""
+    bids = listing.get("bids") or ""
+    fmt = listing.get("format") or ""
+    return "bid" in bids.lower() or "bid" in fmt.lower()
+
 
 def _listing_type(listing):
     """Human-readable buying format, e.g. 'Auction · 5 bids' or 'Buy It Now · Best Offer'."""
@@ -504,18 +530,32 @@ def _listing_type(listing):
     return None
 
 
-def send_discord(webhook_url, watch_name, listing, grade):
+def send_discord(webhook_url, watch_name, listing, grade,
+                 event="new", old_price_str=None, drop_pct=None):
     label = GRADE_LABELS.get(grade, grade)
-    color = GRADE_COLORS.get(grade, 0x2F3136)
     emoji = GRADE_EMOJI.get(grade, "•")
     company = GRADE_COMPANY.get(grade, "—")
     price = listing.get("price_str") or "N/A"
     url = listing["url"]
     shipping = listing.get("shipping")
 
-    # Headline: big price (with shipping suffix when known), grade badge, CTA link.
-    price_bit = f"## {price}" + (f"  ·  _{shipping}_" if shipping else "")
-    headline = f"{price_bit}\n" if price != "N/A" else ""
+    if event == "drop":
+        # Price-drop styling: green, struck-through old price, % off.
+        color = 0x2E7D32
+        author = f"📉  Price drop · {watch_name}"
+        foot = "eBay · price drop"
+        content = f"📉 **{watch_name}** — price drop {old_price_str} → {price}" + (
+            f"  (−{drop_pct}%)" if drop_pct else "")
+        pct_bit = f"  ·  **−{drop_pct}% off**" if drop_pct else ""
+        headline = f"## {price}   ~~{old_price_str}~~{pct_bit}\n" if price != "N/A" else ""
+    else:
+        color = GRADE_COLORS.get(grade, 0x2F3136)
+        author = f"🆕  {watch_name}"
+        foot = "eBay · newly listed"
+        content = f"{emoji} **{watch_name}** — {label} · {price}"
+        price_bit = f"## {price}" + (f"  ·  _{shipping}_" if shipping else "")
+        headline = f"{price_bit}\n" if price != "N/A" else ""
+
     description = (
         f"{headline}"
         f"{emoji} **{label}**  ·  {company}\n\n"
@@ -531,21 +571,20 @@ def send_discord(webhook_url, watch_name, listing, grade):
         fields.append({"name": "Condition", "value": listing["condition"][:80], "inline": True})
 
     embed = {
-        "author": {"name": f"🆕  {watch_name}"},
+        "author": {"name": author},
         "title": listing["title"][:250],
         "url": url,
         "color": color,
         "description": description,
         "fields": fields,
-        "footer": {"text": f"eBay · newly listed · #{listing.get('item_id', '')}"},
+        "footer": {"text": f"{foot} · #{listing.get('item_id', '')}"},
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     if listing.get("image"):
         embed["thumbnail"] = {"url": listing["image"]}
 
-    # content drives the mobile/desktop push preview — make it self-contained.
     payload = {
-        "content": f"{emoji} **{watch_name}** — {label} · {price}",
+        "content": content,
         "embeds": [embed],
     }
     resp = requests.post(webhook_url, json=payload, timeout=20)
@@ -583,6 +622,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
     webhook = os.environ.get("DISCORD_WEBHOOK_URL") or cfg.get("discord_webhook_url", "")
     domain = cfg.get("ebay_domain", "www.ebay.com")
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # A price drop alerts when the price falls at least this % AND this many $
+    # below the last-recorded price (per-watch overridable).
+    cfg_drop_pct = float(cfg.get("price_drop_pct", 5))
+    cfg_drop_min = float(cfg.get("price_drop_min", 1))
 
     for watch in cfg.get("watches", []):
         name = watch["name"]
@@ -596,27 +639,32 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
             print(f"[{ts}] [{name}] fetch error: {e}", file=sys.stderr)
             continue
 
-        # Load this watch's already-seen ids in a single query, then dedup in
-        # memory (cheaper than a SELECT per listing).
-        seen_ids = {row[0] for row in
-                    conn.execute("SELECT item_id FROM seen WHERE watch=?", (name,))}
+        # Load this watch's seen items as {item_id: (last_price, last_price_str)}
+        # in one query (also serves as the dedup set).
+        seen_prices = {row[0]: (row[1], row[2]) for row in
+                       conn.execute("SELECT item_id, price, price_str FROM seen WHERE watch=?", (name,))}
 
         # Seed silently (mark matches seen, no alerts) on a watch's first run, or
         # whenever --reseed is used (e.g. after broadening filters, to avoid a flood
         # of alerts for listings that were already up but newly match).
-        seeding = reseed or (not seen_ids and not notify_existing and not dry_run)
-        matched = 0
-        new_count = 0
+        seeding = reseed or (not seen_prices and not notify_existing and not dry_run)
+        matched = new_count = drop_count = 0
         lang_pref = watch.get("language", "english")
         require = watch.get("require", [])
         exclude = watch.get("exclude", [])
-        to_seed = []
-        now_iso = datetime.now(timezone.utc).isoformat()
-
         match_any = watch.get("match_any")
         allow_lots = watch.get("allow_lots", False)
+        allow_auctions = watch.get("allow_auctions", cfg.get("include_auctions", False))
+        drop_pct = float(watch.get("price_drop_pct", cfg_drop_pct))
+        drop_min = float(watch.get("price_drop_min", cfg_drop_min))
+        to_seed = []          # brand-new items to bulk-insert
+        price_updates = []    # (price, price_str, item_id) baselines / post-drop
+        now_iso = datetime.now(timezone.utc).isoformat()
+
         for lst in listings:
             if is_lot(lst["title"]) and not allow_lots:
+                continue
+            if is_auction(lst) and not allow_auctions:
                 continue
             if not matches_filters(lst["title"], require, exclude, match_any):
                 continue
@@ -630,47 +678,87 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
             matched += 1
 
             item_id = lst["item_id"]
-            if item_id in seen_ids:
-                continue
-            seen_ids.add(item_id)
+            cur = lst["price_low"]
+            cur_str = lst["price_str"]
 
+            # ---- already-seen listing: watch for a price drop ----
+            if item_id in seen_prices:
+                ref_price, ref_str = seen_prices[item_id]
+                if dry_run:
+                    if (ref_price is not None and cur is not None
+                            and cur <= ref_price * (1 - drop_pct / 100)
+                            and (ref_price - cur) >= drop_min):
+                        pct = round((ref_price - cur) / ref_price * 100)
+                        print(f"[DRY][DROP] [{name}] {ref_str or _fmt_price(ref_price)} -> {cur_str} ({pct}%)  {lst['url']}")
+                    continue
+                if ref_price is None or seeding:
+                    # baseline the price (migration / reseed) — never alert
+                    if cur is not None:
+                        price_updates.append((cur, cur_str, item_id))
+                        seen_prices[item_id] = (cur, cur_str)
+                    continue
+                if cur is None:
+                    continue
+                if cur <= ref_price * (1 - drop_pct / 100) and (ref_price - cur) >= drop_min:
+                    pct = round((ref_price - cur) / ref_price * 100)
+                    old_str = ref_str or _fmt_price(ref_price)
+                    if not webhook or webhook.startswith("PASTE_"):
+                        print(f"[{ts}] [{name}] PRICE DROP {old_str} -> {cur_str} {lst['url']} (no webhook)")
+                    else:
+                        try:
+                            send_discord(webhook, name, lst, grade, event="drop",
+                                         old_price_str=old_str, drop_pct=pct)
+                            print(f"[{ts}] [{name}] price drop: {old_str} -> {cur_str} ({pct}%) {lst['url']}")
+                        except Exception as e:
+                            print(f"[{ts}] [{name}] discord error: {e}", file=sys.stderr)
+                            continue  # keep old ref; retry next pass
+                    price_updates.append((cur, cur_str, item_id))
+                    seen_prices[item_id] = (cur, cur_str)
+                    drop_count += 1
+                    time.sleep(0.4)
+                continue
+
+            # ---- brand-new listing ----
+            seen_prices[item_id] = (cur, cur_str)
             if dry_run:
-                print(f"[DRY] [{name}] {GRADE_LABELS[grade]:16} {lst['price_str']:>12}  {lst['title'][:70]}  {lst['url']}")
+                print(f"[DRY] [{name}] {GRADE_LABELS[grade]:16} {cur_str:>12}  {lst['title'][:70]}  {lst['url']}")
                 new_count += 1
                 continue
-
             if seeding:
-                to_seed.append((name, item_id, grade, now_iso))
+                to_seed.append((name, item_id, grade, now_iso, cur, cur_str))
                 continue
-
-            # Genuinely new + wanted -> notify.
             if not webhook or webhook.startswith("PASTE_"):
-                print(f"[{ts}] [{name}] NEW {GRADE_LABELS[grade]} {lst['price_str']} {lst['url']} "
+                print(f"[{ts}] [{name}] NEW {GRADE_LABELS[grade]} {cur_str} {lst['url']} "
                       f"(no webhook configured — not sent)")
             else:
                 try:
                     send_discord(webhook, name, lst, grade)
-                    print(f"[{ts}] [{name}] notified: {GRADE_LABELS[grade]} {lst['price_str']} {lst['url']}")
+                    print(f"[{ts}] [{name}] notified: {GRADE_LABELS[grade]} {cur_str} {lst['url']}")
                 except Exception as e:
                     print(f"[{ts}] [{name}] discord error: {e}", file=sys.stderr)
-                    seen_ids.discard(item_id)  # don't mark seen so we retry next pass
+                    seen_prices.pop(item_id, None)  # don't mark seen so we retry next pass
                     continue
-            mark_seen(conn, name, item_id, grade)
+            mark_seen(conn, name, item_id, grade, cur, cur_str)
             new_count += 1
             time.sleep(0.4)  # be gentle with the webhook
 
-        # Batch the first-run seeding into one transaction (one commit, not N).
+        # Batch DB writes: bulk-insert new seeds, bulk-update changed prices.
         if to_seed:
             conn.executemany(
-                "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen) VALUES (?,?,?,?)",
-                to_seed,
-            )
+                "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str) "
+                "VALUES (?,?,?,?,?,?)", to_seed)
+        if price_updates:
+            conn.executemany(
+                "UPDATE seen SET price=?, price_str=? WHERE watch=? AND item_id=?",
+                [(p, s, name, i) for (p, s, i) in price_updates])
+        if to_seed or price_updates:
             conn.commit()
 
         if seeding:
             print(f"[{ts}] [{name}] first run: seeded {len(to_seed)} existing matched listing(s) as seen (no alerts).")
         else:
-            print(f"[{ts}] [{name}] {len(listings)} scraped, {matched} matched wanted grades, {new_count} new.")
+            print(f"[{ts}] [{name}] {len(listings)} scraped, {matched} matched, "
+                  f"{new_count} new, {drop_count} price drop(s).")
 
 
 def main():

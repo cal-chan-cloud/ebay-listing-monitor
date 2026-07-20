@@ -2,6 +2,8 @@
   "discord_webhook_url": "",
   "poll_interval_seconds": 300,
   "ebay_domain": "www.ebay.com",
+  "price_drop_pct": 5,
+  "price_drop_min": 1,
   "watches": [
     {
       "name": "Luffy ST26-005 SP",
