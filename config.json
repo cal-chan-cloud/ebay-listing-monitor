@@ -93,6 +93,19 @@
       "language": "english",
       "min_price": null,
       "max_price": null
+    },
+    {
+      "name": "Luffy OP05-060 PSA Magazine Promo",
+      "queries": [
+        "luffy op05-060 psa magazine",
+        "luffy op05-060 magazine exclusive promo",
+        "one piece luffy op05-060 magazine"
+      ],
+      "require": ["op05-060", "magazine"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
+      "language": "english",
+      "min_price": null,
+      "max_price": null
     }
   ]
 }
