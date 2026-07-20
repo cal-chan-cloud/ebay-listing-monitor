@@ -29,6 +29,24 @@
       "language": "english",
       "min_price": null,
       "max_price": null
+    },
+    {
+      "name": "Nami OP06-101 SP",
+      "query": "nami op06-101 sp",
+      "require": ["op06-101"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Chopper ST01-006 1st Anniversary",
+      "query": "chopper st01-006 1st anniversary",
+      "require": ["st01-006", "1st anniversary"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
+      "language": "english",
+      "min_price": null,
+      "max_price": null
     }
   ]
 }
