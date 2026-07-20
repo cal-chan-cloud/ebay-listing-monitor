@@ -1,0 +1,34 @@
+{
+  "discord_webhook_url": "",
+  "poll_interval_seconds": 300,
+  "ebay_domain": "www.ebay.com",
+  "watches": [
+    {
+      "name": "Luffy ST26-005 SP",
+      "query": "luffy st26-005 sp",
+      "require": ["st26-005"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Sanji OP10-005 Flagship Promo (JP)",
+      "query": "sanji op10-005 flagship",
+      "require": ["op10-005", "flagship"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
+      "language": "any",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Luffy OP05-119 SEC (Alt / Manga Art)",
+      "query": "luffy op05-119 manga art",
+      "require": ["op05-119"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# Force LF so the GitHub Actions (Ubuntu) shell steps don't choke on CRLF.
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.py    text eol=lf
+*.sh    text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+# Never apply line-ending conversion to the SQLite state file.
+*.db    binary
