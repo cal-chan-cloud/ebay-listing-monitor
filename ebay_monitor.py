@@ -123,10 +123,11 @@ _BGS10 = re.compile(r"\b(?:BGS|BECKETT)\s*10\b")
 _GRADED_HINT = re.compile(
     r"\b(?:" + "|".join(GRADING_COMPANIES) + r")\b", re.IGNORECASE
 )
-# ACE and TAG are real graders but collide with the character "Ace" and the word
-# "tag", so only count them as graders when immediately followed by a grade number
-# ("ACE 10", "TAG 9.5"). Bare "Portgas D. Ace" / "with tag" stay ungraded.
-_GRADED_NUM = re.compile(r"\b(?:ACE|TAG)\s*(?:10|\d(?:\.\d)?)\b", re.IGNORECASE)
+# ACE, TAG and ARS are real third-party graders but collide with the character
+# "Ace", the word "tag", and common letters, so only count them as graders when
+# immediately followed by a grade number ("ACE 10", "TAG 9.5", "ARS 10"). Bare
+# "Portgas D. Ace" / "with tag" stay ungraded.
+_GRADED_NUM = re.compile(r"\b(?:ACE|TAG|ARS)\s*(?:10|\d(?:\.\d)?)\b", re.IGNORECASE)
 
 
 def classify_grade(title: str) -> str:
@@ -230,10 +231,18 @@ def is_lot(title: str) -> bool:
 
 
 def matches_filters(title: str, require, exclude) -> bool:
-    """True if title contains every 'require' term and none of the 'exclude' terms."""
+    """True if the title satisfies every 'require' clause and no 'exclude' term.
+
+    Each 'require' clause is either a string (the title must contain it) or a list
+    of alternatives (the title must contain AT LEAST ONE of them) — so a clause
+    like ["500 years", "op07"] matches either phrasing of the same card.
+    """
     nt = _norm(title)
-    for term in (require or []):
-        if _norm(term) not in nt:
+    for clause in (require or []):
+        if isinstance(clause, (list, tuple)):
+            if not any(_norm(alt) in nt for alt in clause if _norm(alt)):
+                return False
+        elif _norm(clause) not in nt:
             return False
     for t in _DEFAULT_EXCLUDE_NORM:
         if t in nt:
@@ -412,6 +421,26 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
     return listings
 
 
+def fetch_all(domain: str, watch: dict, delay: float = 0.6):
+    """Fetch a watch across all its search phrasings and merge+dedupe by item id.
+
+    A watch may set "queries" (a list) to search several wordings; falls back to
+    the single "query". Broader/alternate searches surface differently-worded
+    listings of the same card, which the require/grade filters then keep precise.
+    """
+    queries = watch.get("queries") or ([watch["query"]] if watch.get("query") else [])
+    merged = {}
+    for i, q in enumerate(queries):
+        if i:
+            time.sleep(delay)  # be gentle between searches
+        try:
+            for lst in fetch_listings(domain, q):
+                merged.setdefault(lst["item_id"], lst)
+        except Exception as e:
+            print(f"[{watch.get('name','?')}] query {q!r} error: {e}", file=sys.stderr)
+    return list(merged.values())
+
+
 # ---------------------------------------------------------------------------
 # Seen-listing store
 # ---------------------------------------------------------------------------
@@ -538,7 +567,7 @@ def price_ok(price_low, watch):
     return True
 
 
-def scan_once(cfg, conn, dry_run=False, notify_existing=False):
+def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
     # Prefer the env var (used by the cloud/GitHub Actions deploy so the webhook
     # stays out of the public repo); fall back to config.json for local runs.
     webhook = os.environ.get("DISCORD_WEBHOOK_URL") or cfg.get("discord_webhook_url", "")
@@ -552,7 +581,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False):
         wanted = {g.replace(" ", "") for g in wanted}
 
         try:
-            listings = fetch_listings(domain, watch["query"])
+            listings = fetch_all(domain, watch)
         except Exception as e:
             print(f"[{ts}] [{name}] fetch error: {e}", file=sys.stderr)
             continue
@@ -562,8 +591,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False):
         seen_ids = {row[0] for row in
                     conn.execute("SELECT item_id FROM seen WHERE watch=?", (name,))}
 
-        # First run for this watch: seed as seen silently (unless told otherwise / dry-run).
-        seeding = not seen_ids and not notify_existing and not dry_run
+        # Seed silently (mark matches seen, no alerts) on a watch's first run, or
+        # whenever --reseed is used (e.g. after broadening filters, to avoid a flood
+        # of alerts for listings that were already up but newly match).
+        seeding = reseed or (not seen_ids and not notify_existing and not dry_run)
         matched = 0
         new_count = 0
         lang_pref = watch.get("language", "english")
@@ -637,14 +668,18 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="scan + print, send nothing, record nothing")
     ap.add_argument("--notify-existing", action="store_true",
                     help="on a watch's first run, alert for listings already up (default: seed silently)")
+    ap.add_argument("--reseed", action="store_true",
+                    help="mark all current matches as seen without alerting (run after broadening "
+                         "filters/queries so already-listed items don't flood you)")
     args = ap.parse_args()
 
     enable_file_logging()
     cfg = load_config()
     conn = db_connect()
 
-    if args.once or args.dry_run:
-        scan_once(cfg, conn, dry_run=args.dry_run, notify_existing=args.notify_existing)
+    if args.once or args.dry_run or args.reseed:
+        scan_once(cfg, conn, dry_run=args.dry_run,
+                  notify_existing=args.notify_existing, reseed=args.reseed)
         return
 
     interval = int(cfg.get("poll_interval_seconds", 300))

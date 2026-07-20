@@ -5,7 +5,11 @@
   "watches": [
     {
       "name": "Luffy ST26-005 SP",
-      "query": "luffy st26-005 sp",
+      "queries": [
+        "luffy st26-005 sp",
+        "luffy st26-005 adventure island",
+        "monkey d luffy st26-005 foil"
+      ],
       "require": ["st26-005"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
       "language": "english",
@@ -14,7 +18,10 @@
     },
     {
       "name": "Sanji OP10-005 Flagship Promo (JP)",
-      "query": "sanji op10-005 flagship",
+      "queries": [
+        "sanji op10-005 flagship",
+        "sanji op10-005 flagship battle promo"
+      ],
       "require": ["op10-005", "flagship"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
       "language": "any",
@@ -23,7 +30,10 @@
     },
     {
       "name": "Luffy OP05-119 SEC (Alt / Manga Art)",
-      "query": "luffy op05-119 manga art",
+      "queries": [
+        "luffy op05-119 manga art",
+        "luffy op05-119 sec alternate art"
+      ],
       "require": ["op05-119"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
       "language": "english",
@@ -32,8 +42,12 @@
     },
     {
       "name": "Nami OP06-101 SP Alt Art (500 Years)",
-      "query": "nami op06-101 500 years",
-      "require": ["op06-101", "500 years"],
+      "queries": [
+        "nami op06-101 500 years",
+        "o-nami op06-101 sp alt art",
+        "nami op06-101 op07 sp"
+      ],
+      "require": ["op06-101", ["500 years", "op07", "500yitf"]],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
       "language": "english",
       "min_price": null,
@@ -41,8 +55,11 @@
     },
     {
       "name": "Chopper ST01-006 1st Anniversary",
-      "query": "chopper st01-006 1st anniversary",
-      "require": ["st01-006", "1st anniversary"],
+      "queries": [
+        "chopper st01-006 1st anniversary",
+        "tony chopper st01-006 anniversary promo"
+      ],
+      "require": ["st01-006", ["1st anni", "first anniversary"]],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
       "language": "english",
       "min_price": null,
