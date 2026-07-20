@@ -269,6 +269,17 @@ GRADE_COMPANY = {
 
 ITEM_ID_RE = re.compile(r"/itm/(?:[^/]+/)?(\d{9,})")
 
+# eBay appends accessibility/boilerplate noise to the scraped title text.
+_TITLE_NOISE = re.compile(r"\s*Opens in a new window or tab\s*", re.IGNORECASE)
+
+
+def clean_title(title: str) -> str:
+    """Strip eBay boilerplate ('New Listing', 'Opens in a new window or tab') and
+    collapse whitespace to a single clean line."""
+    title = re.sub(r"^\s*New Listing\s*", "", title, flags=re.IGNORECASE)
+    title = _TITLE_NOISE.sub(" ", title)
+    return re.sub(r"\s+", " ", title).strip()
+
 
 def _cell_text(li, selector):
     """Collapsed text of the first element matching selector inside li, or None."""
@@ -349,7 +360,7 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
             or link_el
         )
         title = html.unescape(title_el.get_text(" ", strip=True)) if title_el else ""
-        title = re.sub(r"^\s*New Listing\s*", "", title, flags=re.IGNORECASE).strip()
+        title = clean_title(title)
         # eBay injects a placeholder "Shop on eBay" card — skip it.
         if not title or title.lower() == "shop on ebay":
             continue
@@ -425,6 +436,21 @@ def watch_has_history(conn, watch):
 # Discord
 # ---------------------------------------------------------------------------
 
+def _listing_type(listing):
+    """Human-readable buying format, e.g. 'Auction · 5 bids' or 'Buy It Now · Best Offer'."""
+    bids = listing.get("bids")
+    fmt = (listing.get("format") or "").lower()
+    if bids:
+        return f"🔨 Auction · {bids}"
+    if "best offer" in fmt:
+        return "🏷️ Buy It Now · or Best Offer"
+    if "buy it now" in fmt or "buy-it-now" in fmt:
+        return "🏷️ Buy It Now"
+    if listing.get("format"):
+        return listing["format"]
+    return None
+
+
 def send_discord(webhook_url, watch_name, listing, grade):
     label = GRADE_LABELS.get(grade, grade)
     color = GRADE_COLORS.get(grade, 0x2F3136)
@@ -432,40 +458,41 @@ def send_discord(webhook_url, watch_name, listing, grade):
     company = GRADE_COMPANY.get(grade, "—")
     price = listing.get("price_str") or "N/A"
     url = listing["url"]
+    shipping = listing.get("shipping")
 
-    # Headline: big price + grade badge, then a clear call-to-action link.
+    # Headline: big price (with shipping suffix when known), grade badge, CTA link.
+    price_bit = f"## {price}" + (f"  ·  _{shipping}_" if shipping else "")
+    headline = f"{price_bit}\n" if price != "N/A" else ""
     description = (
-        f"## {price}\n"
+        f"{headline}"
         f"{emoji} **{label}**  ·  {company}\n\n"
-        f"**[🔗  View listing on eBay]({url})**"
+        f"**[View listing on eBay  ↗]({url})**"
     )
 
     # Secondary details, only shown when eBay provided them.
     fields = []
+    ltype = _listing_type(listing)
+    if ltype:
+        fields.append({"name": "Format", "value": ltype[:80], "inline": True})
     if listing.get("condition"):
-        fields.append({"name": "📦 Condition", "value": listing["condition"][:80], "inline": True})
-    if listing.get("format"):
-        fields.append({"name": "🧾 Buying option", "value": listing["format"][:80], "inline": True})
-    if listing.get("bids"):
-        fields.append({"name": "🔨 Bids", "value": listing["bids"][:40], "inline": True})
-    if listing.get("shipping"):
-        fields.append({"name": "🚚 Shipping", "value": listing["shipping"][:80], "inline": True})
+        fields.append({"name": "Condition", "value": listing["condition"][:80], "inline": True})
 
     embed = {
-        "author": {"name": f"🆕 New listing · {watch_name}"},
+        "author": {"name": f"🆕  {watch_name}"},
         "title": listing["title"][:250],
         "url": url,
         "color": color,
         "description": description,
         "fields": fields,
-        "footer": {"text": "eBay · sorted by newly listed"},
+        "footer": {"text": f"eBay · newly listed · #{listing.get('item_id', '')}"},
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     if listing.get("image"):
         embed["thumbnail"] = {"url": listing["image"]}
 
+    # content drives the mobile/desktop push preview — make it self-contained.
     payload = {
-        "content": f"{emoji} **{watch_name}** — new **{label}** listing",
+        "content": f"{emoji} **{watch_name}** — {label} · {price}",
         "embeds": [embed],
     }
     resp = requests.post(webhook_url, json=payload, timeout=20)
