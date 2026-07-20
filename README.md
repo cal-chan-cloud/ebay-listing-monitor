@@ -1,9 +1,12 @@
 # eBay → Discord New Listing Monitor
 
-Watches eBay for **newly listed** items matching your search terms, and posts a
-Discord notification for each new listing that matches the grade buckets you care
-about. The notification includes the **price**, a **link to the listing**, and the
-**grade + grading company** (or "Ungraded").
+Watches eBay for matching cards and posts a Discord notification when:
+- a **new listing** appears (price, link, grade + grading company), and
+- a tracked listing's **price drops** (green "📉 price drop" alert showing old → new).
+
+**Auction (bid) listings are excluded** by default — only fixed-price / Buy-It-Now
+listings are tracked (set `include_auctions: true`, or per-watch `allow_auctions`,
+to include them).
 
 Currently watching (English unless noted; grades: ungraded / PSA 10 / BGS 10 / BGS 9.5):
 - **Luffy ST26-005 SP**
@@ -156,6 +159,19 @@ Add entries to the `watches` array in `config.json`:
   `classify_grade()` — e.g. `psa9`, `cgc10`.)
 - `language` — `english` (default), `japanese`, `chinese`, `korean`, or `any`.
 - `min_price` / `max_price` — optional numeric filters (use `null` to disable).
+- `allow_auctions` — set `true` to include auction listings for this watch
+  (default: auctions excluded). Global default: `include_auctions` (top level).
+- `allow_lots` — set `true` to include multi-card lots for this watch.
+- `price_drop_pct` / `price_drop_min` — per-watch override of the drop thresholds.
+
+## Price-drop alerts
+
+Every scan records each tracked listing's price. When a listing's price falls at
+least **`price_drop_pct`** (top-level, default **5%**) **and** at least
+**`price_drop_min`** (default **$1**) below its last-recorded price, you get a
+green **📉 price drop** alert (old → new, % off). The reference then resets to the
+new price, so small wiggles don't spam you and only further drops re-alert. Price
+rises never alert (so excluded-by-default auctions wouldn't trigger it anyway).
 
 ### Language filtering
 
