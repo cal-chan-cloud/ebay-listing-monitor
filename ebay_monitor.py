@@ -230,20 +230,28 @@ def is_lot(title: str) -> bool:
     return len(nums) >= 2
 
 
-def matches_filters(title: str, require, exclude) -> bool:
-    """True if the title satisfies every 'require' clause and no 'exclude' term.
-
-    Each 'require' clause is either a string (the title must contain it) or a list
-    of alternatives (the title must contain AT LEAST ONE of them) — so a clause
-    like ["500 years", "op07"] matches either phrasing of the same card.
-    """
-    nt = _norm(title)
+def _require_ok(nt: str, require) -> bool:
+    """AND of clauses; each clause is a string (must be present) or a list of
+    alternatives (at least one must be present)."""
     for clause in (require or []):
         if isinstance(clause, (list, tuple)):
             if not any(_norm(alt) in nt for alt in clause if _norm(alt)):
                 return False
         elif _norm(clause) not in nt:
             return False
+    return True
+
+
+def matches_filters(title: str, require, exclude, match_any=None) -> bool:
+    """True if the title matches the card and hits no 'exclude' term.
+
+    Excludes are always applied. The card is identified by either:
+      - a single `require` signature (AND of clauses, each clause str or alias-list), or
+      - `match_any`: a list of signatures — match if ANY one fully matches. This is
+        how a name-based fallback works, e.g. one signature keyed on the card number
+        and another on character-name + descriptors for listings that omit the number.
+    """
+    nt = _norm(title)
     for t in _DEFAULT_EXCLUDE_NORM:
         if t in nt:
             return False
@@ -251,7 +259,9 @@ def matches_filters(title: str, require, exclude) -> bool:
         t = _norm(term)
         if t and t in nt:
             return False
-    return True
+    if match_any:
+        return any(_require_ok(nt, sig) for sig in match_any)
+    return _require_ok(nt, require)
 
 
 GRADE_LABELS = {
@@ -603,11 +613,12 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
         to_seed = []
         now_iso = datetime.now(timezone.utc).isoformat()
 
+        match_any = watch.get("match_any")
         allow_lots = watch.get("allow_lots", False)
         for lst in listings:
             if is_lot(lst["title"]) and not allow_lots:
                 continue
-            if not matches_filters(lst["title"], require, exclude):
+            if not matches_filters(lst["title"], require, exclude, match_any):
                 continue
             grade = classify_grade(lst["title"])
             if grade not in wanted:

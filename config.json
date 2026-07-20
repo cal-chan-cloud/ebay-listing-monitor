@@ -44,10 +44,14 @@
       "name": "Nami OP06-101 SP Alt Art (500 Years)",
       "queries": [
         "nami op06-101 500 years",
-        "o-nami op06-101 sp alt art",
-        "nami op06-101 op07 sp"
+        "o-nami op06-101 op07 sp",
+        "o-nami sp alt art 500 years future",
+        "o-nami op07-101 500 years"
       ],
-      "require": ["op06-101", ["500 years", "op07", "500yitf"]],
+      "match_any": [
+        [["op06-101", "op07-101"], ["500 years", "op07"]],
+        [["nami", "o-nami", "onami"], ["500 years", "op07"], ["sp", "alt art", "alternate art"]]
+      ],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
       "language": "english",
       "min_price": null,
@@ -57,9 +61,29 @@
       "name": "Chopper ST01-006 1st Anniversary",
       "queries": [
         "chopper st01-006 1st anniversary",
-        "tony chopper st01-006 anniversary promo"
+        "tony chopper st01-006 anniversary promo",
+        "tony chopper 1st anniversary set 006"
       ],
-      "require": ["st01-006", ["1st anni", "first anniversary"]],
+      "match_any": [
+        ["st01-006", ["1st anni", "first anniversary"]],
+        [["chopper"], ["1st anni", "first anniversary"]]
+      ],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Nami OP15-086 Alt Art",
+      "queries": [
+        "nami op15-086 alt art",
+        "nami op15-086 alternate art wedding",
+        "nami op15-086 sr kami island"
+      ],
+      "match_any": [
+        [["op15-086", "eb04-086"], ["alt art", "alternate art"]],
+        [["nami"], ["alt art", "alternate art"], ["kamis island", "kami island", "adventure on kami"], ["sr", "super rare"]]
+      ],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
       "language": "english",
       "min_price": null,
