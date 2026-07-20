@@ -22,7 +22,7 @@ import re
 import sqlite3
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from urllib.parse import urlencode
 
@@ -427,8 +427,15 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
         if not title or title.lower() == "shop on ebay":
             continue
 
+        li_text = li.get_text(" ", strip=True)
+
         price_el = li.select_one(".s-item__price") or li.select_one(".s-card__price")
-        price_str, price_low = parse_price(price_el.get_text(" ", strip=True)) if price_el else ("N/A", None)
+        if price_el:
+            price_str, price_low = parse_price(price_el.get_text(" ", strip=True))
+        else:
+            # fallback: first $-amount in the card text — survives price-class renames.
+            fm = re.search(r"\$[\d,]+(?:\.\d{2})?", li_text)
+            price_str, price_low = parse_price(fm.group(0)) if fm else ("N/A", None)
 
         img_el = li.select_one("img")
         image = None
@@ -441,7 +448,6 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
         # Bid count identifies auctions. eBay keeps renaming the CSS class
         # (.s-item__bids -> .s-card__attribute-row/.su-styled-text), so detect it
         # from the card's text instead — durable across layout changes.
-        li_text = li.get_text(" ", strip=True)
         bm = re.search(r"\b(\d[\d,]*)\s+bids?\b", li_text, re.IGNORECASE)
         bids = bm.group(0) if bm else None
 
@@ -504,17 +510,41 @@ def db_connect():
     conn.execute(
         "CREATE TABLE IF NOT EXISTS seen ("
         "  watch TEXT, item_id TEXT, grade TEXT, first_seen TEXT,"
-        "  price REAL, price_str TEXT,"
+        "  price REAL, price_str TEXT, last_seen TEXT,"
         "  PRIMARY KEY (watch, item_id))"
     )
-    # Migrate older DBs that predate the price columns.
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+    # Migrate older DBs that predate later columns.
     cols = {r[1] for r in conn.execute("PRAGMA table_info(seen)")}
     if "price" not in cols:
         conn.execute("ALTER TABLE seen ADD COLUMN price REAL")
     if "price_str" not in cols:
         conn.execute("ALTER TABLE seen ADD COLUMN price_str TEXT")
+    if "last_seen" not in cols:
+        conn.execute("ALTER TABLE seen ADD COLUMN last_seen TEXT")
+    # Baseline last_seen (to first_seen's date) so pruning has a reference.
+    conn.execute("UPDATE seen SET last_seen=substr(first_seen,1,10) WHERE last_seen IS NULL")
     conn.commit()
     return conn
+
+
+def meta_get(conn, key, default=None):
+    row = conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+    return row[0] if row else default
+
+
+def meta_set(conn, key, value):
+    conn.execute("INSERT INTO meta(key, value) VALUES(?, ?) "
+                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
+    conn.commit()
+
+
+def prune_seen(conn, days):
+    """Delete seen rows not observed in `days` days (sold/ended listings)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+    cur = conn.execute("DELETE FROM seen WHERE last_seen IS NOT NULL AND last_seen < ?", (cutoff,))
+    conn.commit()
+    return cur.rowcount
 
 
 def is_seen(conn, watch, item_id):
@@ -523,10 +553,11 @@ def is_seen(conn, watch, item_id):
 
 
 def mark_seen(conn, watch, item_id, grade, price=None, price_str=None):
+    now = datetime.now(timezone.utc)
     conn.execute(
-        "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str) "
-        "VALUES (?,?,?,?,?,?)",
-        (watch, item_id, grade, datetime.now(timezone.utc).isoformat(), price, price_str),
+        "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str, last_seen) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (watch, item_id, grade, now.isoformat(), price, price_str, now.date().isoformat()),
     )
     conn.commit()
 
@@ -539,6 +570,14 @@ def watch_has_history(conn, watch):
 # ---------------------------------------------------------------------------
 # Discord
 # ---------------------------------------------------------------------------
+
+def send_simple_discord(webhook_url, title, text, color):
+    """Post a plain (non-listing) embed, e.g. a health/status alert."""
+    payload = {"embeds": [{"title": title, "description": text, "color": color,
+                           "timestamp": datetime.now(timezone.utc).isoformat()}]}
+    resp = requests.post(webhook_url, json=payload, timeout=20)
+    resp.raise_for_status()
+
 
 def is_auction(listing):
     """True if the listing is an auction (eBay shows a bid count on auctions only)."""
@@ -664,6 +703,8 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
     cfg_regions = {canon_region(x) for x in cfg.get("allowed_regions", ["US", "CA"])}
     cfg_regions.discard(None)
     cfg_allow_unknown_region = bool(cfg.get("allow_unknown_region", False))
+    prune_days = int(cfg.get("prune_days", 30))
+    total_scraped = 0
 
     for watch in cfg.get("watches", []):
         name = watch["name"]
@@ -676,6 +717,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
         except Exception as e:
             print(f"[{ts}] [{name}] fetch error: {e}", file=sys.stderr)
             continue
+        total_scraped += len(listings)
 
         # Load this watch's seen items as {item_id: (last_price, last_price_str)}
         # in one query (also serves as the dedup set).
@@ -703,7 +745,9 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
         allow_unknown_region = bool(watch.get("allow_unknown_region", cfg_allow_unknown_region))
         to_seed = []          # brand-new items to bulk-insert
         price_updates = []    # (price, price_str, item_id) baselines / post-drop
+        refresh_ids = []      # seen items observed this scan (refresh last_seen)
         now_iso = datetime.now(timezone.utc).isoformat()
+        today = now_iso[:10]
 
         for lst in listings:
             if is_lot(lst["title"]) and not allow_lots:
@@ -737,6 +781,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
                         pct = round((ref_price - cur) / ref_price * 100)
                         print(f"[DRY][DROP] [{name}] {ref_str or _fmt_price(ref_price)} -> {cur_str} ({pct}%)  {lst['url']}")
                     continue
+                refresh_ids.append(item_id)   # observed today -> keep alive from pruning
                 if ref_price is None or seeding:
                     # baseline the price (migration / reseed) — never alert
                     if cur is not None:
@@ -771,7 +816,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
                 new_count += 1
                 continue
             if seeding:
-                to_seed.append((name, item_id, grade, now_iso, cur, cur_str))
+                to_seed.append((name, item_id, grade, now_iso, cur, cur_str, today))
                 continue
             if not webhook or webhook.startswith("PASTE_"):
                 print(f"[{ts}] [{name}] NEW {GRADE_LABELS[grade]} {cur_str} {lst['url']} "
@@ -788,16 +833,23 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
             new_count += 1
             time.sleep(0.4)  # be gentle with the webhook
 
-        # Batch DB writes: bulk-insert new seeds, bulk-update changed prices.
+        # Batch DB writes: bulk-insert new seeds, bulk-update changed prices,
+        # and refresh last_seen (only rewrites rows whose date actually changed,
+        # so this churns the DB at most once per day).
         if to_seed:
             conn.executemany(
-                "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str) "
-                "VALUES (?,?,?,?,?,?)", to_seed)
+                "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str, last_seen) "
+                "VALUES (?,?,?,?,?,?,?)", to_seed)
         if price_updates:
             conn.executemany(
                 "UPDATE seen SET price=?, price_str=? WHERE watch=? AND item_id=?",
                 [(p, s, name, i) for (p, s, i) in price_updates])
-        if to_seed or price_updates:
+        if refresh_ids:
+            conn.executemany(
+                "UPDATE seen SET last_seen=? WHERE watch=? AND item_id=? "
+                "AND (last_seen IS NULL OR last_seen<>?)",
+                [(today, name, i, today) for i in refresh_ids])
+        if to_seed or price_updates or refresh_ids:
             conn.commit()
 
         if seeding:
@@ -805,6 +857,66 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
         else:
             print(f"[{ts}] [{name}] {len(listings)} scraped, {matched} matched, "
                   f"{new_count} new, {drop_count} price drop(s).")
+
+    # --- after all watches: prune stale rows + health check on the whole scan ---
+    if not dry_run:
+        pruned = prune_seen(conn, prune_days)
+        if pruned:
+            print(f"[{ts}] pruned {pruned} stale seen row(s) not seen in > {prune_days}d.")
+
+    if not dry_run and not reseed:
+        watches = cfg.get("watches", [])
+        healthy = total_scraped > 0 or not watches
+        prev = meta_get(conn, "health", "ok")
+        if not healthy and prev == "ok":
+            meta_set(conn, "health", "down")
+            msg = (f"0 listings scraped across all {len(watches)} watch(es) this run — eBay may be "
+                   "blocking the scraper or changed its page layout. No alerts will fire until this "
+                   "recovers.")
+            print(f"[{ts}] HEALTH DOWN: {msg}", file=sys.stderr)
+            if webhook and not webhook.startswith("PASTE_"):
+                try:
+                    send_simple_discord(webhook, "⚠️ eBay monitor health", msg, 0xB71C1C)
+                except Exception as e:
+                    print(f"health alert error: {e}", file=sys.stderr)
+        elif healthy and prev == "down":
+            meta_set(conn, "health", "ok")
+            print(f"[{ts}] HEALTH RECOVERED.")
+            if webhook and not webhook.startswith("PASTE_"):
+                try:
+                    send_simple_discord(webhook, "✅ eBay monitor recovered",
+                                        "Scraping is working again — alerts resume.", 0x2E7D32)
+                except Exception as e:
+                    print(f"health alert error: {e}", file=sys.stderr)
+
+
+def validate_config(cfg):
+    """Print warnings for likely-misconfigured watches. Returns the warning list."""
+    warnings = []
+    watches = cfg.get("watches", [])
+    if not watches:
+        warnings.append("no watches configured")
+    valid_grades = set(GRADE_LABELS)
+    for i, w in enumerate(watches):
+        tag = w.get("name") or f"watch #{i}"
+        if not (w.get("queries") or w.get("query")):
+            warnings.append(f"{tag}: no 'queries'/'query' to search")
+        if not w.get("require") and not w.get("match_any"):
+            warnings.append(f"{tag}: no 'require'/'match_any' — would match EVERY search result")
+        if not w.get("grades"):
+            warnings.append(f"{tag}: no 'grades' — nothing will match")
+        for g in w.get("grades", []):
+            if g.lower().replace(" ", "") not in valid_grades:
+                warnings.append(f"{tag}: unknown grade {g!r}")
+        for r in w.get("allowed_regions", []):
+            if canon_region(r) in (None, "OTHER"):
+                warnings.append(f"{tag}: unrecognized region {r!r} (use US/CA)")
+    for r in cfg.get("allowed_regions", []):
+        if canon_region(r) in (None, "OTHER"):
+            warnings.append(f"top-level allowed_regions: unrecognized region {r!r}")
+    for wmsg in warnings:
+        print(f"config warning: {wmsg}", file=sys.stderr)
+    return warnings
 
 
 def main():
@@ -820,6 +932,7 @@ def main():
 
     enable_file_logging()
     cfg = load_config()
+    validate_config(cfg)
     conn = db_connect()
 
     if args.once or args.dry_run or args.reseed:

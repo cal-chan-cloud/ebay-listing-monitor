@@ -6,6 +6,7 @@
   "price_drop_min": 1,
   "allowed_regions": ["US", "CA"],
   "allow_unknown_region": false,
+  "prune_days": 30,
   "watches": [
     {
       "name": "Luffy ST26-005 SP",
