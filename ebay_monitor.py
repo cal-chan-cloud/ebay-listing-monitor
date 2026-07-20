@@ -273,9 +273,9 @@ def canon_region(text: str):
     low = (text or "").strip().lower()
     if not low:
         return None
-    if "united states" in low or low in {"us", "usa", "u.s.", "u.s.a."}:
+    if re.search(r"\bunited states\b", low) or low in {"us", "usa", "u.s.", "u.s.a."}:
         return "US"
-    if "canada" in low or low == "ca":
+    if re.search(r"\bcanada\b", low) or low == "ca":
         return "CA"
     return "OTHER"
 
@@ -440,10 +440,11 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
         img_el = li.select_one("img")
         image = None
         if img_el:
-            image = img_el.get("src") or img_el.get("data-src")
-        if image:
-            # bump eBay's tiny grid thumbnail (s-l140/225) up to a crisp 500px.
-            image = re.sub(r"s-l\d+", "s-l500", image)
+            # prefer the real lazy-loaded URL; skip 1x2 spacer/data: placeholders.
+            src = img_el.get("data-src") or img_el.get("src") or ""
+            if src.startswith("http"):
+                # bump eBay's tiny grid thumbnail (s-l140/225) up to a crisp 500px.
+                image = re.sub(r"s-l\d+", "s-l500", src)
 
         # Bid count identifies auctions. eBay keeps renaming the CSS class
         # (.s-item__bids -> .s-card__attribute-row/.su-styled-text), so detect it
@@ -459,7 +460,11 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
 
         condition = (_cell_text(li, ".s-item__subtitle") or _cell_text(li, ".SECONDARY_INFO")
                      or _cell_text(li, ".s-card__subtitle"))
-        shipping = _cell_text(li, ".s-item__shipping") or _cell_text(li, ".s-item__logisticsCost")
+        # Shipping: read from card text (durable) with a legacy-selector fallback.
+        sm = re.search(r"(Free (?:delivery|shipping|postage)|\+?\s*\$[\d,.]+\s*(?:delivery|shipping|postage))",
+                       li_text, re.IGNORECASE)
+        shipping = (" ".join(sm.group(0).split()) if sm
+                    else _cell_text(li, ".s-item__shipping") or _cell_text(li, ".s-item__logisticsCost"))
         fmt = _cell_text(li, ".s-item__purchase-options-with-icon")
 
         seen_ids.add(item_id)
@@ -547,11 +552,6 @@ def prune_seen(conn, days):
     return cur.rowcount
 
 
-def is_seen(conn, watch, item_id):
-    cur = conn.execute("SELECT 1 FROM seen WHERE watch=? AND item_id=?", (watch, item_id))
-    return cur.fetchone() is not None
-
-
 def mark_seen(conn, watch, item_id, grade, price=None, price_str=None):
     now = datetime.now(timezone.utc)
     conn.execute(
@@ -562,21 +562,39 @@ def mark_seen(conn, watch, item_id, grade, price=None, price_str=None):
     conn.commit()
 
 
-def watch_has_history(conn, watch):
-    cur = conn.execute("SELECT 1 FROM seen WHERE watch=? LIMIT 1", (watch,))
-    return cur.fetchone() is not None
-
-
 # ---------------------------------------------------------------------------
 # Discord
 # ---------------------------------------------------------------------------
+
+def _post_webhook(webhook_url, payload, attempts=4):
+    """POST to Discord, backing off correctly on 429 (whose body may be HTML)."""
+    resp = None
+    for _ in range(attempts):
+        resp = requests.post(webhook_url, json=payload, timeout=20)
+        if resp.status_code == 429:
+            retry = None
+            try:
+                retry = float(resp.json().get("retry_after", 0))
+            except Exception:
+                pass
+            if not retry:
+                try:
+                    retry = float(resp.headers.get("Retry-After", 1))
+                except Exception:
+                    retry = 1.0
+            time.sleep(min(retry, 30) + 0.5)
+            continue
+        resp.raise_for_status()
+        return
+    if resp is not None:
+        resp.raise_for_status()
+
 
 def send_simple_discord(webhook_url, title, text, color):
     """Post a plain (non-listing) embed, e.g. a health/status alert."""
     payload = {"embeds": [{"title": title, "description": text, "color": color,
                            "timestamp": datetime.now(timezone.utc).isoformat()}]}
-    resp = requests.post(webhook_url, json=payload, timeout=20)
-    resp.raise_for_status()
+    _post_webhook(webhook_url, payload)
 
 
 def is_auction(listing):
@@ -660,13 +678,7 @@ def send_discord(webhook_url, watch_name, listing, grade,
         "content": content,
         "embeds": [embed],
     }
-    resp = requests.post(webhook_url, json=payload, timeout=20)
-    # Discord returns 204 on success; 429 = rate limited.
-    if resp.status_code == 429:
-        retry = resp.json().get("retry_after", 1)
-        time.sleep(float(retry) + 0.5)
-        resp = requests.post(webhook_url, json=payload, timeout=20)
-    resp.raise_for_status()
+    _post_webhook(webhook_url, payload)
 
 
 # ---------------------------------------------------------------------------
@@ -705,6 +717,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
     cfg_allow_unknown_region = bool(cfg.get("allow_unknown_region", False))
     prune_days = int(cfg.get("prune_days", 30))
     total_scraped = 0
+    total_matched = 0
 
     for watch in cfg.get("watches", []):
         name = watch["name"]
@@ -803,7 +816,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
                         except Exception as e:
                             print(f"[{ts}] [{name}] discord error: {e}", file=sys.stderr)
                             continue  # keep old ref; retry next pass
-                    price_updates.append((cur, cur_str, item_id))
+                    # Rebaseline immediately (commit now) so a crash can't re-send this drop.
+                    conn.execute("UPDATE seen SET price=?, price_str=?, last_seen=? WHERE watch=? AND item_id=?",
+                                 (cur, cur_str, today, name, item_id))
+                    conn.commit()
                     seen_prices[item_id] = (cur, cur_str)
                     drop_count += 1
                     time.sleep(0.4)
@@ -857,6 +873,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
         else:
             print(f"[{ts}] [{name}] {len(listings)} scraped, {matched} matched, "
                   f"{new_count} new, {drop_count} price drop(s).")
+        total_matched += matched
 
     # --- after all watches: prune stale rows + health check on the whole scan ---
     if not dry_run:
@@ -866,13 +883,17 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
 
     if not dry_run and not reseed:
         watches = cfg.get("watches", [])
-        healthy = total_scraped > 0 or not watches
+        healthy = (total_scraped > 0 and total_matched > 0) or not watches
         prev = meta_get(conn, "health", "ok")
         if not healthy and prev == "ok":
             meta_set(conn, "health", "down")
-            msg = (f"0 listings scraped across all {len(watches)} watch(es) this run — eBay may be "
-                   "blocking the scraper or changed its page layout. No alerts will fire until this "
-                   "recovers.")
+            if total_scraped == 0:
+                msg = (f"0 listings scraped across all {len(watches)} watch(es) — eBay may be blocking "
+                       "the scraper or changed its page layout.")
+            else:
+                msg = (f"{total_scraped} listings scraped but 0 matched any watch — a filter, the region "
+                       "filter, or an eBay layout change likely broke matching.")
+            msg += " No alerts will fire until this recovers."
             print(f"[{ts}] HEALTH DOWN: {msg}", file=sys.stderr)
             if webhook and not webhook.startswith("PASTE_"):
                 try:

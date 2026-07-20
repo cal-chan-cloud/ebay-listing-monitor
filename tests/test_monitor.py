@@ -122,6 +122,8 @@ conn = m.db_connect()
 sends = []
 m.send_discord = lambda url, name, lst, grade, event="new", old_price_str=None, drop_pct=None: \
     sends.append((event, lst["item_id"], old_price_str, lst["price_str"], drop_pct))
+health = []
+m.send_simple_discord = lambda url, title, text, color: health.append((title, text))
 
 def run(fixtures, **kw):
     m.fetch_listings = lambda d, q, **k: list(fixtures)
@@ -138,16 +140,19 @@ ok("price drop alert 10%", s == [("drop", "1", "$100.00", "$90.00", 10)])
 ok("no re-drop when stable", run([L("1", "$90.00", 90.0), L("2", "$50.00", 50.0)]) == [])
 ok("increase no alert", run([L("1", "$200.00", 200.0), L("2", "$50.00", 50.0)]) == [])
 jp = L("7", "$10.00", 10.0); jp["location"] = "Japan"
-ok("japan listing excluded in scan", run([jp]) == [])
+res = run([jp, L("1", "$200.00", 200.0)])   # jp excluded (region); item 1 seen -> no alert
+ok("japan listing excluded in scan", not any(r[1] == "7" for r in res))
 
 print("== health check + prune ==")
-health = []
-m.send_simple_discord = lambda url, title, text, color: health.append(title)
-run([])                                   # 0 scraped across all watches -> down
-ok("health down alerted", any("health" in h.lower() for h in health))
+m.meta_set(conn, "health", "ok"); health.clear()
+run([])                                   # 0 scraped across all watches -> down (scrape broken)
+ok("health down on 0 scraped", any("scraped across" in txt for _, txt in health))
 health.clear()
-run([L("1", "$200.00", 200.0)])           # scraping back -> recovered
-ok("health recovered alerted", any("recover" in h.lower() for h in health))
+run([L("1", "$200.00", 200.0)])           # scraping + matching back -> recovered
+ok("health recovered alerted", any("recover" in t.lower() for t, _ in health))
+health.clear()
+run([L("z", "$10.00", 10.0, "Unrelated Card XYZ")])   # scraped>0 but 0 matched -> down
+ok("health down on 0 matched (filter wipeout)", any("0 matched" in txt for _, txt in health))
 
 stale = (m.datetime.now(m.timezone.utc) - m.timedelta(days=40)).date().isoformat()
 conn.execute("INSERT OR REPLACE INTO seen(watch,item_id,grade,first_seen,price,price_str,last_seen) "
