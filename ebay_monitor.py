@@ -264,6 +264,31 @@ def matches_filters(title: str, require, exclude, match_any=None) -> bool:
     return _require_ok(nt, require)
 
 
+# ---------------------------------------------------------------------------
+# Seller/item region (from the listing's "Located in <country>")
+# ---------------------------------------------------------------------------
+
+def canon_region(text: str):
+    """Normalize a location string to 'US', 'CA', 'OTHER', or None (unknown)."""
+    low = (text or "").strip().lower()
+    if not low:
+        return None
+    if "united states" in low or low in {"us", "usa", "u.s.", "u.s.a."}:
+        return "US"
+    if "canada" in low or low == "ca":
+        return "CA"
+    return "OTHER"
+
+
+def passes_region(location, allowed, allow_unknown):
+    """True if the listing's location is in `allowed` (a set of canonical codes).
+    Unknown locations pass only when allow_unknown is True."""
+    reg = canon_region(location)
+    if reg is None:
+        return allow_unknown
+    return reg in allowed
+
+
 GRADE_LABELS = {
     "psa10": "PSA 10",
     "bgs10": "BGS 10",
@@ -420,6 +445,12 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
         bm = re.search(r"\b(\d[\d,]*)\s+bids?\b", li_text, re.IGNORECASE)
         bids = bm.group(0) if bm else None
 
+        # Item location, e.g. "Located in United States" -> "United States".
+        location = None
+        loc_node = li.find(string=re.compile(r"Located in\s+\S", re.IGNORECASE))
+        if loc_node:
+            location = re.sub(r"^.*?Located in\s+", "", loc_node.strip(), flags=re.IGNORECASE).strip()
+
         condition = (_cell_text(li, ".s-item__subtitle") or _cell_text(li, ".SECONDARY_INFO")
                      or _cell_text(li, ".s-card__subtitle"))
         shipping = _cell_text(li, ".s-item__shipping") or _cell_text(li, ".s-item__logisticsCost")
@@ -437,6 +468,7 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
             "shipping": shipping,
             "bids": bids,
             "format": fmt,
+            "location": location,
         })
     return listings
 
@@ -569,6 +601,8 @@ def send_discord(webhook_url, watch_name, listing, grade,
         fields.append({"name": "Format", "value": ltype[:80], "inline": True})
     if listing.get("condition"):
         fields.append({"name": "Condition", "value": listing["condition"][:80], "inline": True})
+    if listing.get("location"):
+        fields.append({"name": "Location", "value": f"📍 {listing['location'][:78]}", "inline": True})
 
     embed = {
         "author": {"name": author},
@@ -626,6 +660,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
     # below the last-recorded price (per-watch overridable).
     cfg_drop_pct = float(cfg.get("price_drop_pct", 5))
     cfg_drop_min = float(cfg.get("price_drop_min", 1))
+    # Only alert for listings located in these regions (default US + Canada).
+    cfg_regions = {canon_region(x) for x in cfg.get("allowed_regions", ["US", "CA"])}
+    cfg_regions.discard(None)
+    cfg_allow_unknown_region = bool(cfg.get("allow_unknown_region", False))
 
     for watch in cfg.get("watches", []):
         name = watch["name"]
@@ -657,6 +695,12 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
         allow_auctions = watch.get("allow_auctions", cfg.get("include_auctions", False))
         drop_pct = float(watch.get("price_drop_pct", cfg_drop_pct))
         drop_min = float(watch.get("price_drop_min", cfg_drop_min))
+        if "allowed_regions" in watch:
+            regions = {canon_region(x) for x in watch["allowed_regions"]}
+            regions.discard(None)
+        else:
+            regions = cfg_regions
+        allow_unknown_region = bool(watch.get("allow_unknown_region", cfg_allow_unknown_region))
         to_seed = []          # brand-new items to bulk-insert
         price_updates = []    # (price, price_str, item_id) baselines / post-drop
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -665,6 +709,8 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
             if is_lot(lst["title"]) and not allow_lots:
                 continue
             if is_auction(lst) and not allow_auctions:
+                continue
+            if not passes_region(lst.get("location"), regions, allow_unknown_region):
                 continue
             if not matches_filters(lst["title"], require, exclude, match_any):
                 continue

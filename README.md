@@ -8,6 +8,11 @@ Watches eBay for matching cards and posts a Discord notification when:
 listings are tracked (set `include_auctions: true`, or per-watch `allow_auctions`,
 to include them).
 
+**Only US + Canada sellers** are notified by default (from each listing's "Located
+in" country). Change with the top-level `allowed_regions` (e.g. `["US"]` or add
+more), or per-watch `allowed_regions`. Listings whose location can't be read are
+skipped unless `allow_unknown_region: true`.
+
 Currently watching (English unless noted; grades: ungraded / PSA 10 / BGS 10 / BGS 9.5):
 - **Luffy ST26-005 SP**
 - **Sanji OP10-005 Flagship Promo** — any language (JP/Asia promo), Flagship-only
@@ -162,6 +167,8 @@ Add entries to the `watches` array in `config.json`:
 - `allow_auctions` — set `true` to include auction listings for this watch
   (default: auctions excluded). Global default: `include_auctions` (top level).
 - `allow_lots` — set `true` to include multi-card lots for this watch.
+- `allowed_regions` — per-watch region allow-list (canonical `US` / `CA`);
+  overrides the top-level default `["US", "CA"]`.
 - `price_drop_pct` / `price_drop_min` — per-watch override of the drop thresholds.
 
 ## Price-drop alerts
