@@ -171,6 +171,23 @@ Add entries to the `watches` array in `config.json`:
   overrides the top-level default `["US", "CA"]`.
 - `price_drop_pct` / `price_drop_min` — per-watch override of the drop thresholds.
 
+## Reliability & maintenance
+
+- **Health check** — if a whole scan scrapes 0 listings across every watch (eBay
+  blocking, or an HTML change), you get a one-time Discord ⚠️ alert (and a ✅ when it
+  recovers). This is what stops a broken scraper from failing silently.
+- **Auto-pruning** — each listing's `last_seen` date is tracked; rows not seen in
+  `prune_days` (default 30) are deleted, so `seen.db` and the git history don't grow
+  forever and sold/ended listings clear out. (`last_seen` only rewrites once/day, so
+  it doesn't spam commits.)
+- **Config validation** — `config.json` is checked on startup; warnings print for
+  empty `queries`, a match-everything watch (no `require`/`match_any`), unknown
+  grades, or bad region codes.
+- **Tests + CI** — `tests/test_monitor.py` runs offline (grade/lot/region/price-drop/
+  validation/health); `.github/workflows/tests.yml` runs it on every push.
+- **Scraper resilience** — bids, location, and price are read by text pattern with
+  CSS-class fallbacks, so eBay's frequent layout renames are less likely to break it.
+
 ## Price-drop alerts
 
 Every scan records each tracked listing's price. When a listing's price falls at
