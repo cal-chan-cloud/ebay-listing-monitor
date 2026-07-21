@@ -348,14 +348,34 @@ def _cell_text(li, selector):
     return val or None
 
 
-def build_search_url(domain: str, query: str) -> str:
-    # _sop=10 -> sort by "newly listed"; LH_BIN not forced so auctions show too.
-    params = {
-        "_nkw": query,
-        "_sop": "10",     # newest first
-        "_ipg": "60",     # items per page
-    }
+def build_search_url(domain: str, query: str, sold: bool = False) -> str:
+    params = {"_nkw": query, "_ipg": "60"}
+    if sold:
+        # completed + sold listings = real recent sales (for market-price estimation).
+        params.update({"LH_Sold": "1", "LH_Complete": "1", "_sop": "13"})
+    else:
+        params["_sop"] = "10"     # newest first
     return f"https://{domain}/sch/i.html?" + urlencode(params)
+
+
+_MONTHS = {mo: i for i, mo in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+
+
+def _parse_sold_date(li_text):
+    """Extract 'Sold <Mon> <D>[, <YYYY>]' -> ISO date string, or None."""
+    mt = re.search(r"\bSold\s+([A-Za-z]{3})\s+(\d{1,2})(?:,?\s*(\d{4}))?", li_text, re.IGNORECASE)
+    if not mt:
+        return None
+    mo = _MONTHS.get(mt.group(1).lower())
+    if not mo:
+        return None
+    day = int(mt.group(2))
+    year = int(mt.group(3)) if mt.group(3) else datetime.now(timezone.utc).year
+    try:
+        return f"{year:04d}-{mo:02d}-{day:02d}"
+    except Exception:
+        return None
 
 
 def parse_price(text: str):
@@ -377,13 +397,13 @@ def _looks_blocked(text: str) -> bool:
     return ("pardon our interruption" in low) or ("s-item__link" not in text and "s-card" not in text and len(text) < 60000)
 
 
-def fetch_listings(domain: str, query: str, max_attempts: int = 4):
-    """Return a list of dicts: {item_id, title, price_str, price_low, url}.
+def fetch_listings(domain: str, query: str, max_attempts: int = 4, sold: bool = False):
+    """Return a list of dicts: {item_id, title, price_str, price_low, url, ...}.
 
     Retries through eBay's 403 and 'Pardon Our Interruption' soft-block pages,
-    re-priming cookies between attempts.
+    re-priming cookies between attempts. sold=True fetches completed sales.
     """
-    url = build_search_url(domain, query)
+    url = build_search_url(domain, query, sold=sold)
     session = get_session(domain)
 
     html_text = None
@@ -480,16 +500,18 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4):
             "bids": bids,
             "format": fmt,
             "location": location,
+            "sold_date": _parse_sold_date(li_text) if sold else None,
         })
     return listings
 
 
-def fetch_all(domain: str, watch: dict, delay: float = 0.6):
+def fetch_all(domain: str, watch: dict, delay: float = 0.6, sold: bool = False):
     """Fetch a watch across all its search phrasings and merge+dedupe by item id.
 
     A watch may set "queries" (a list) to search several wordings; falls back to
     the single "query". Broader/alternate searches surface differently-worded
     listings of the same card, which the require/grade filters then keep precise.
+    sold=True fetches completed sales instead of active listings.
     """
     queries = watch.get("queries") or ([watch["query"]] if watch.get("query") else [])
     merged = {}
@@ -497,11 +519,79 @@ def fetch_all(domain: str, watch: dict, delay: float = 0.6):
         if i:
             time.sleep(delay)  # be gentle between searches
         try:
-            for lst in fetch_listings(domain, q):
+            for lst in fetch_listings(domain, q, sold=sold):
                 merged.setdefault(lst["item_id"], lst)
         except Exception as e:
             print(f"[{watch.get('name','?')}] query {q!r} error: {e}", file=sys.stderr)
     return list(merged.values())
+
+
+def _median(values):
+    vals = sorted(values)
+    n = len(vals)
+    if not n:
+        return None
+    mid = n // 2
+    return vals[mid] if n % 2 else (vals[mid - 1] + vals[mid]) / 2
+
+
+def compute_market_price(domain, watch, recent_n=15, min_sales=3):
+    """Median price of the most-recent UNGRADED sales for the card, or None.
+
+    Uses eBay completed/sold listings (real recent transactions) filtered by the
+    watch's own require/lot/language rules and restricted to ungraded/raw sales.
+    Rejects outliers (damaged/wrong-condition junk lows and graded-slab highs) by
+    keeping only sales within [0.4x, 2.5x] of the rough median before averaging.
+    """
+    require = watch.get("require", [])
+    exclude = watch.get("exclude", [])
+    match_any = watch.get("match_any")
+    lang = watch.get("language", "english")
+    allow_lots = watch.get("allow_lots", False)
+    sales = []
+    for x in fetch_all(domain, watch, sold=True):
+        if x["price_low"] is None or not x.get("sold_date"):
+            continue
+        if is_lot(x["title"]) and not allow_lots:
+            continue
+        if not matches_filters(x["title"], require, exclude, match_any):
+            continue
+        if classify_grade(x["title"]) != "ungraded":
+            continue
+        if not passes_language(x["title"], lang):
+            continue
+        sales.append((x["sold_date"], x["price_low"]))
+    if len(sales) < min_sales:
+        return None
+    sales.sort(reverse=True)                      # most-recent sold first
+    recent = [p for _, p in sales[:recent_n]]
+    rough = _median(recent)
+    core = [p for p in recent if rough and 0.4 * rough <= p <= 2.5 * rough]
+    if len(core) < min_sales:
+        core = recent                             # too aggressive — fall back
+    return round(_median(core), 2)
+
+
+def get_market_price(conn, domain, watch, cache_hours=6, allow_write=True):
+    """Cached market price (in meta table) so we don't refetch sales every scan."""
+    key = "market:" + watch["name"]
+    now = datetime.now(timezone.utc)
+    raw = meta_get(conn, key)
+    if raw:
+        try:
+            data = json.loads(raw)
+            if (now - datetime.fromisoformat(data["ts"])).total_seconds() < cache_hours * 3600:
+                return data["price"]
+        except Exception:
+            pass
+    try:
+        price = compute_market_price(domain, watch)
+    except Exception as e:
+        print(f"[{watch.get('name','?')}] market price error: {e}", file=sys.stderr)
+        return None
+    if allow_write:
+        meta_set(conn, key, json.dumps({"price": price, "ts": now.isoformat()}))
+    return price
 
 
 # ---------------------------------------------------------------------------
@@ -515,7 +605,7 @@ def db_connect():
     conn.execute(
         "CREATE TABLE IF NOT EXISTS seen ("
         "  watch TEXT, item_id TEXT, grade TEXT, first_seen TEXT,"
-        "  price REAL, price_str TEXT, last_seen TEXT,"
+        "  price REAL, price_str TEXT, last_seen TEXT, below_alerted INTEGER DEFAULT 0,"
         "  PRIMARY KEY (watch, item_id))"
     )
     conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
@@ -527,6 +617,8 @@ def db_connect():
         conn.execute("ALTER TABLE seen ADD COLUMN price_str TEXT")
     if "last_seen" not in cols:
         conn.execute("ALTER TABLE seen ADD COLUMN last_seen TEXT")
+    if "below_alerted" not in cols:
+        conn.execute("ALTER TABLE seen ADD COLUMN below_alerted INTEGER DEFAULT 0")
     # Baseline last_seen (to first_seen's date) so pruning has a reference.
     conn.execute("UPDATE seen SET last_seen=substr(first_seen,1,10) WHERE last_seen IS NULL")
     conn.commit()
@@ -552,12 +644,12 @@ def prune_seen(conn, days):
     return cur.rowcount
 
 
-def mark_seen(conn, watch, item_id, grade, price=None, price_str=None):
+def mark_seen(conn, watch, item_id, grade, price=None, price_str=None, below_alerted=0):
     now = datetime.now(timezone.utc)
     conn.execute(
-        "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str, last_seen) "
-        "VALUES (?,?,?,?,?,?,?)",
-        (watch, item_id, grade, now.isoformat(), price, price_str, now.date().isoformat()),
+        "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str, last_seen, below_alerted) "
+        "VALUES (?,?,?,?,?,?,?,?)",
+        (watch, item_id, grade, now.isoformat(), price, price_str, now.date().isoformat(), below_alerted),
     )
     conn.commit()
 
@@ -620,16 +712,27 @@ def _listing_type(listing):
 
 
 def send_discord(webhook_url, watch_name, listing, grade,
-                 event="new", old_price_str=None, drop_pct=None):
+                 event="new", old_price_str=None, drop_pct=None, market_price=None):
     label = GRADE_LABELS.get(grade, grade)
     emoji = GRADE_EMOJI.get(grade, "•")
     company = GRADE_COMPANY.get(grade, "—")
     price = listing.get("price_str") or "N/A"
     url = listing["url"]
     shipping = listing.get("shipping")
+    cur_low = listing.get("price_low")
 
-    if event == "drop":
-        # Price-drop styling: green, struck-through old price, % off.
+    # Market comparison (ungraded only; market_price is the recent-sold median).
+    vs_pct = round((cur_low - market_price) / market_price * 100) if (market_price and cur_low is not None) else None
+    below = bool(market_price and cur_low is not None and cur_low < market_price)
+
+    if event == "below_market":
+        color = 0xF39C12  # amber "deal"
+        author = f"🔥  Below market · {watch_name}"
+        foot = "eBay · below market"
+        content = (f"🔥 **{watch_name}** — {price}"
+                   + (f" · {abs(vs_pct)}% below market" if vs_pct is not None else " · below market"))
+        headline = f"## {price}" + (f"  ·  _{shipping}_" if shipping else "") + "\n" if price != "N/A" else ""
+    elif event == "drop":
         color = 0x2E7D32
         author = f"📉  Price drop · {watch_name}"
         foot = "eBay · price drop"
@@ -638,15 +741,22 @@ def send_discord(webhook_url, watch_name, listing, grade,
         pct_bit = f"  ·  **−{drop_pct}% off**" if drop_pct else ""
         headline = f"## {price}   ~~{old_price_str}~~{pct_bit}\n" if price != "N/A" else ""
     else:
-        color = GRADE_COLORS.get(grade, 0x2F3136)
+        color = 0xF39C12 if below else GRADE_COLORS.get(grade, 0x2F3136)
         author = f"🆕  {watch_name}"
         foot = "eBay · newly listed"
-        content = f"{emoji} **{watch_name}** — {label} · {price}"
+        content = (f"{emoji} **{watch_name}** — {label} · {price}"
+                   + (" · 🔥 below market" if below else ""))
         price_bit = f"## {price}" + (f"  ·  _{shipping}_" if shipping else "")
         headline = f"{price_bit}\n" if price != "N/A" else ""
 
+    deal_line = ""
+    if below:
+        deal_line = (f"🔥 **{abs(vs_pct)}% below market**\n" if vs_pct is not None
+                     else "🔥 **below market**\n")
+
     description = (
         f"{headline}"
+        f"{deal_line}"
         f"{emoji} **{label}**  ·  {company}\n\n"
         f"**[View listing on eBay  ↗]({url})**"
     )
@@ -660,6 +770,9 @@ def send_discord(webhook_url, watch_name, listing, grade,
         fields.append({"name": "Condition", "value": listing["condition"][:80], "inline": True})
     if listing.get("location"):
         fields.append({"name": "Location", "value": f"📍 {listing['location'][:78]}", "inline": True})
+    if market_price:
+        mv = f"${market_price:,.0f}" + (f"  ({vs_pct:+d}%)" if vs_pct is not None else "")
+        fields.append({"name": "Market (recent sold)", "value": mv, "inline": True})
 
     embed = {
         "author": {"name": author},
@@ -711,6 +824,11 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
     # below the last-recorded price (per-watch overridable).
     cfg_drop_pct = float(cfg.get("price_drop_pct", 5))
     cfg_drop_min = float(cfg.get("price_drop_min", 1))
+    # An ungraded listing is a "below market" deal when its price is at least this
+    # % below the recent-sold market price, but NOT below `below_market_floor` x
+    # market (those are damaged/base/mislabeled junk, not real deals).
+    cfg_below_pct = float(cfg.get("below_market_pct", 5))
+    cfg_below_floor = float(cfg.get("below_market_floor", 0.5))
     # Only alert for listings located in these regions (default US + Canada).
     cfg_regions = {canon_region(x) for x in cfg.get("allowed_regions", ["US", "CA"])}
     cfg_regions.discard(None)
@@ -732,16 +850,16 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
             continue
         total_scraped += len(listings)
 
-        # Load this watch's seen items as {item_id: (last_price, last_price_str)}
+        # Load this watch's seen items as {item_id: (price, price_str, below_alerted)}
         # in one query (also serves as the dedup set).
-        seen_prices = {row[0]: (row[1], row[2]) for row in
-                       conn.execute("SELECT item_id, price, price_str FROM seen WHERE watch=?", (name,))}
+        seen_prices = {row[0]: (row[1], row[2], row[3]) for row in
+                       conn.execute("SELECT item_id, price, price_str, below_alerted FROM seen WHERE watch=?", (name,))}
 
         # Seed silently (mark matches seen, no alerts) on a watch's first run, or
         # whenever --reseed is used (e.g. after broadening filters, to avoid a flood
         # of alerts for listings that were already up but newly match).
         seeding = reseed or (not seen_prices and not notify_existing and not dry_run)
-        matched = new_count = drop_count = 0
+        matched = new_count = drop_count = below_count = 0
         lang_pref = watch.get("language", "english")
         require = watch.get("require", [])
         exclude = watch.get("exclude", [])
@@ -756,6 +874,13 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
         else:
             regions = cfg_regions
         allow_unknown_region = bool(watch.get("allow_unknown_region", cfg_allow_unknown_region))
+        below_pct = float(watch.get("below_market_pct", cfg_below_pct))
+        below_floor = float(watch.get("below_market_floor", cfg_below_floor))
+        # Recent-sold market price (ungraded), cached ~6h in the meta table; only
+        # computed for watches that actually track ungraded cards.
+        market_price = None
+        if "ungraded" in wanted:
+            market_price = get_market_price(conn, domain, watch, allow_write=not dry_run)
         to_seed = []          # brand-new items to bulk-insert
         price_updates = []    # (price, price_str, item_id) baselines / post-drop
         refresh_ids = []      # seen items observed this scan (refresh last_seen)
@@ -783,26 +908,32 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
             item_id = lst["item_id"]
             cur = lst["price_low"]
             cur_str = lst["price_str"]
+            mkt = market_price if grade == "ungraded" else None
+            below = bool(mkt and cur is not None
+                         and mkt * below_floor <= cur < mkt * (1 - below_pct / 100))
 
-            # ---- already-seen listing: watch for a price drop ----
+            # ---- already-seen listing: watch for a price drop / below-market ----
             if item_id in seen_prices:
-                ref_price, ref_str = seen_prices[item_id]
+                ref_price, ref_str, ref_below = seen_prices[item_id]
                 if dry_run:
                     if (ref_price is not None and cur is not None
                             and cur <= ref_price * (1 - drop_pct / 100)
                             and (ref_price - cur) >= drop_min):
                         pct = round((ref_price - cur) / ref_price * 100)
                         print(f"[DRY][DROP] [{name}] {ref_str or _fmt_price(ref_price)} -> {cur_str} ({pct}%)  {lst['url']}")
+                    if below and not ref_below:
+                        print(f"[DRY][BELOW] [{name}] {cur_str} vs market ${mkt:,.0f}  {lst['url']}")
                     continue
                 refresh_ids.append(item_id)   # observed today -> keep alive from pruning
                 if ref_price is None or seeding:
                     # baseline the price (migration / reseed) — never alert
                     if cur is not None:
-                        price_updates.append((cur, cur_str, item_id))
-                        seen_prices[item_id] = (cur, cur_str)
+                        price_updates.append((cur, cur_str, 1 if below else 0, item_id))
+                        seen_prices[item_id] = (cur, cur_str, 1 if below else 0)
                     continue
                 if cur is None:
                     continue
+                # (1) price drop?
                 if cur <= ref_price * (1 - drop_pct / 100) and (ref_price - cur) >= drop_min:
                     pct = round((ref_price - cur) / ref_price * 100)
                     old_str = ref_str or _fmt_price(ref_price)
@@ -811,41 +942,66 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
                     else:
                         try:
                             send_discord(webhook, name, lst, grade, event="drop",
-                                         old_price_str=old_str, drop_pct=pct)
+                                         old_price_str=old_str, drop_pct=pct, market_price=mkt)
                             print(f"[{ts}] [{name}] price drop: {old_str} -> {cur_str} ({pct}%) {lst['url']}")
                         except Exception as e:
                             print(f"[{ts}] [{name}] discord error: {e}", file=sys.stderr)
                             continue  # keep old ref; retry next pass
-                    # Rebaseline immediately (commit now) so a crash can't re-send this drop.
-                    conn.execute("UPDATE seen SET price=?, price_str=?, last_seen=? WHERE watch=? AND item_id=?",
-                                 (cur, cur_str, today, name, item_id))
+                    conn.execute("UPDATE seen SET price=?, price_str=?, last_seen=?, below_alerted=? "
+                                 "WHERE watch=? AND item_id=?",
+                                 (cur, cur_str, today, 1 if below else 0, name, item_id))
                     conn.commit()
-                    seen_prices[item_id] = (cur, cur_str)
+                    seen_prices[item_id] = (cur, cur_str, 1 if below else 0)
                     drop_count += 1
                     time.sleep(0.4)
+                    continue
+                # (2) newly below market (no drop this pass)?
+                if below and not ref_below:
+                    if not webhook or webhook.startswith("PASTE_"):
+                        print(f"[{ts}] [{name}] BELOW MARKET {cur_str} vs ${mkt:,.0f} {lst['url']} (no webhook)")
+                    else:
+                        try:
+                            send_discord(webhook, name, lst, grade, event="below_market", market_price=mkt)
+                            print(f"[{ts}] [{name}] below market: {cur_str} vs ${mkt:,.0f} {lst['url']}")
+                        except Exception as e:
+                            print(f"[{ts}] [{name}] discord error: {e}", file=sys.stderr)
+                            continue
+                    conn.execute("UPDATE seen SET below_alerted=1, last_seen=? WHERE watch=? AND item_id=?",
+                                 (today, name, item_id))
+                    conn.commit()
+                    seen_prices[item_id] = (ref_price, ref_str, 1)
+                    below_count += 1
+                    time.sleep(0.4)
+                elif not below and ref_below:
+                    # no longer below market -> clear the flag (no alert)
+                    conn.execute("UPDATE seen SET below_alerted=0 WHERE watch=? AND item_id=?", (name, item_id))
+                    conn.commit()
+                    seen_prices[item_id] = (ref_price, ref_str, 0)
                 continue
 
             # ---- brand-new listing ----
-            seen_prices[item_id] = (cur, cur_str)
+            seen_prices[item_id] = (cur, cur_str, 1 if below else 0)
             if dry_run:
-                print(f"[DRY] [{name}] {GRADE_LABELS[grade]:16} {cur_str:>12}  {lst['title'][:70]}  {lst['url']}")
+                tag = "  🔥BELOW-MKT" if below else ""
+                print(f"[DRY] [{name}] {GRADE_LABELS[grade]:16} {cur_str:>12}{tag}  {lst['title'][:64]}  {lst['url']}")
                 new_count += 1
                 continue
             if seeding:
-                to_seed.append((name, item_id, grade, now_iso, cur, cur_str, today))
+                to_seed.append((name, item_id, grade, now_iso, cur, cur_str, today, 1 if below else 0))
                 continue
             if not webhook or webhook.startswith("PASTE_"):
-                print(f"[{ts}] [{name}] NEW {GRADE_LABELS[grade]} {cur_str} {lst['url']} "
-                      f"(no webhook configured — not sent)")
+                print(f"[{ts}] [{name}] NEW {GRADE_LABELS[grade]} {cur_str}"
+                      f"{' BELOW-MKT' if below else ''} {lst['url']} (no webhook configured — not sent)")
             else:
                 try:
-                    send_discord(webhook, name, lst, grade)
-                    print(f"[{ts}] [{name}] notified: {GRADE_LABELS[grade]} {cur_str} {lst['url']}")
+                    send_discord(webhook, name, lst, grade, market_price=mkt)
+                    print(f"[{ts}] [{name}] notified: {GRADE_LABELS[grade]} {cur_str}"
+                          f"{' 🔥below-market' if below else ''} {lst['url']}")
                 except Exception as e:
                     print(f"[{ts}] [{name}] discord error: {e}", file=sys.stderr)
                     seen_prices.pop(item_id, None)  # don't mark seen so we retry next pass
                     continue
-            mark_seen(conn, name, item_id, grade, cur, cur_str)
+            mark_seen(conn, name, item_id, grade, cur, cur_str, below_alerted=1 if below else 0)
             new_count += 1
             time.sleep(0.4)  # be gentle with the webhook
 
@@ -854,12 +1010,12 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
         # so this churns the DB at most once per day).
         if to_seed:
             conn.executemany(
-                "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str, last_seen) "
-                "VALUES (?,?,?,?,?,?,?)", to_seed)
+                "INSERT OR IGNORE INTO seen (watch, item_id, grade, first_seen, price, price_str, last_seen, below_alerted) "
+                "VALUES (?,?,?,?,?,?,?,?)", to_seed)
         if price_updates:
             conn.executemany(
-                "UPDATE seen SET price=?, price_str=? WHERE watch=? AND item_id=?",
-                [(p, s, name, i) for (p, s, i) in price_updates])
+                "UPDATE seen SET price=?, price_str=?, below_alerted=? WHERE watch=? AND item_id=?",
+                [(p, s, b, name, i) for (p, s, b, i) in price_updates])
         if refresh_ids:
             conn.executemany(
                 "UPDATE seen SET last_seen=? WHERE watch=? AND item_id=? "
@@ -871,8 +1027,9 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False):
         if seeding:
             print(f"[{ts}] [{name}] first run: seeded {len(to_seed)} existing matched listing(s) as seen (no alerts).")
         else:
+            mtxt = f", mkt ${market_price:,.0f}" if market_price else ""
             print(f"[{ts}] [{name}] {len(listings)} scraped, {matched} matched, "
-                  f"{new_count} new, {drop_count} price drop(s).")
+                  f"{new_count} new, {drop_count} drop(s), {below_count} below-market{mtxt}.")
         total_matched += matched
 
     # --- after all watches: prune stale rows + health check on the whole scan ---

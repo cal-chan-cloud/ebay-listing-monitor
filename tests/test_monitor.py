@@ -120,7 +120,7 @@ if os.path.exists(tmp):
 m.DB_PATH = tmp
 conn = m.db_connect()
 sends = []
-m.send_discord = lambda url, name, lst, grade, event="new", old_price_str=None, drop_pct=None: \
+m.send_discord = lambda url, name, lst, grade, event="new", old_price_str=None, drop_pct=None, market_price=None: \
     sends.append((event, lst["item_id"], old_price_str, lst["price_str"], drop_pct))
 health = []
 m.send_simple_discord = lambda url, title, text, color: health.append((title, text))
@@ -164,6 +164,20 @@ after = conn.execute("SELECT COUNT(*) FROM seen WHERE item_id='999'").fetchone()
 ok("prune removes stale row", before == 1 and after == 0)
 fresh = conn.execute("SELECT COUNT(*) FROM seen WHERE item_id='1'").fetchone()[0]
 ok("prune keeps fresh row", fresh == 1)
+
+print("== market price + below-market ==")
+check("median", m._median([3, 1, 2]), 2)
+check("median even", m._median([1, 2, 3, 4]), 2.5)
+check("sold date parse", m._parse_sold_date("Sold Jul 19, 2026"), "2026-07-19")
+MKT = {"v": 100.0}
+m.get_market_price = lambda conn_, domain, watch, **k: MKT["v"]
+run([L("b2", "$98.00", 98.0)])            # market 100 -> 98 not below (needs <95); seeds below_alerted=0
+MKT["v"] = 120.0                          # market rises -> 98 now below 120*0.95=114
+s = run([L("b2", "$98.00", 98.0)])
+ok("below-market crossing pings", any(r[0] == "below_market" and r[1] == "b2" for r in s))
+ok("below-market not repeated", not any(r[0] == "below_market" for r in run([L("b2", "$98.00", 98.0)])))
+below_flag = conn.execute("SELECT below_alerted FROM seen WHERE item_id='b2'").fetchone()[0]
+ok("below_alerted persisted", below_flag == 1)
 
 print("\n==== RESULT ====")
 if fails:

@@ -4,6 +4,8 @@
   "ebay_domain": "www.ebay.com",
   "price_drop_pct": 5,
   "price_drop_min": 1,
+  "below_market_pct": 5,
+  "below_market_floor": 0.5,
   "allowed_regions": ["US", "CA"],
   "allow_unknown_region": false,
   "prune_days": 30,
@@ -102,6 +104,19 @@
         "one piece luffy op05-060 magazine"
       ],
       "require": ["op05-060", "magazine"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Nami OP01-016 Gift Collection 2023",
+      "queries": [
+        "nami op01-016 gift collection",
+        "nami op01-016 gift collection 2023",
+        "one piece nami op01-016 gift"
+      ],
+      "require": ["op01-016", "gift collection"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5"],
       "language": "english",
       "min_price": null,
