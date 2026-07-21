@@ -1,8 +1,12 @@
 # eBay → Discord New Listing Monitor
 
 Watches eBay for matching cards and posts a Discord notification when:
-- a **new listing** appears (price, link, grade + grading company), and
-- a tracked listing's **price drops** (green "📉 price drop" alert showing old → new).
+- a **new listing** appears (price, link, grade + grading company),
+- a tracked listing's **price drops** (green "📉 price drop" alert showing old → new), and
+- an **ungraded listing is below market** (amber "🔥 below market" alert). Market
+  price is the median of **recent ungraded eBay sold prices** (real recent sales;
+  TCGplayer is Cloudflare-blocked and can't be scraped). Ungraded alerts also show
+  the market price and the listing's % vs market.
 
 **Auction (bid) listings are excluded** by default — only fixed-price / Buy-It-Now
 listings are tracked (set `include_auctions: true`, or per-watch `allow_auctions`,
@@ -20,6 +24,8 @@ Currently watching (English unless noted; grades: ungraded / PSA 10 / BGS 10 / B
 - **Nami OP06-101 SP Alt Art (500 Years)** — also catches the OP07-101 numbering
 - **Chopper ST01-006 1st Anniversary** — also catches the "#006" numbering
 - **Nami OP15-086 Alt Art** — alt art only (not the base SR foil)
+- **Luffy OP05-060 PSA Magazine Promo** — the PSA Magazine Exclusive promo only
+- **Nami OP01-016 Gift Collection 2023** — the Gift Collection 2023 promo
 
 ## ☁️ Cloud deployment (primary — runs even when your PC is off)
 
@@ -187,6 +193,23 @@ Add entries to the `watches` array in `config.json`:
   validation/health); `.github/workflows/tests.yml` runs it on every push.
 - **Scraper resilience** — bids, location, and price are read by text pattern with
   CSS-class fallbacks, so eBay's frequent layout renames are less likely to break it.
+
+## Market price & below-market deals
+
+For watches that track **ungraded** cards, the monitor estimates a market price from
+**recent eBay sold/completed listings** (real transactions) for that exact card:
+it takes the most-recent ungraded sales, trims outliers (damaged/junk lows and
+graded-slab highs), and uses the median. It's cached ~6h (`market_cache` in the DB).
+
+- Every ungraded alert shows **Market (recent sold)** and the listing's **% vs market**.
+- A listing priced between `below_market_floor` (default **0.5×** market — anything
+  cheaper is treated as damaged/mislabeled junk, not a deal) and
+  `1 − below_market_pct` (default **5%** below) is flagged a **🔥 below-market deal**.
+- New below-market listings are flagged inline; an already-seen listing that *crosses*
+  below market fires a distinct 🔥 alert (tracked so it never repeats).
+- Graded slabs (PSA 10 etc.) get no market price — raw-card sold data doesn't apply.
+
+Tune in `config.json`: `below_market_pct`, `below_market_floor` (both per-watch overridable).
 
 ## Price-drop alerts
 
