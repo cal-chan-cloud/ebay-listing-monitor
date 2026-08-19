@@ -222,7 +222,7 @@
         "pokemon squirtle minimum pack 007/018 japanese holo",
         "ポケモン ゼニガメ マクドナルド 007/018"
       ],
-      "require": ["squirtle", "007/018"],
+      "match_any": [["squirtle", "007/018"], ["squirtle", "mcdonald", "007"]],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only McDonald's promo (no English print), so squirtle + 007/018 already gate identity; _norm strips CJK, matching rides on the Latin tokens (squirtle / 007/018 / mcdonald) sellers include, and 'any' keeps terse listings with no language word (e.g. 'Pokemon Card Squirtle McDonald's Promo 007/018') that 'japanese' would drop.",
       "language": "any",
@@ -338,7 +338,7 @@
         "oshawott white flare IR 105/086 english",
         "oshawott 105 white flare holo"
       ],
-      "require": ["oshawott", "105/086"],
+      "match_any": [["oshawott", "105/086"], ["oshawott", "105", ["white flare", "wht"], "illustration"]],
       "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'english' + foreign-word excludes: the 105/086 collector number is shared across White Flare's Western-language prints (EN/DE/FR/IT/ES/PT), so the language markers scope this to English while terse English listings (no language word -> 'unknown') are kept; 'english' additionally drops the Japanese White Flare (CJK).",
@@ -372,8 +372,11 @@
         "squirtle deck vhs intro pack squirtle 1999",
         "ゼニガメ イントロパック 007 squirtle deck"
       ],
-      "require": ["squirtle", ["squirtle deck", "intro pack", "intro deck", "vhs"], ["007", "no007"]],
-      "exclude": ["wartortle", "blastoise", "venusaur"],
+      "match_any": [
+        ["squirtle", ["squirtle deck", "intro pack", "intro deck", "vhs"], ["007", "no007"]],
+        ["squirtle", ["squirtle deck", "intro pack", "intro deck", "vhs"], ["16", "18", "37", "40"]]
+      ],
+      "exclude": ["wartortle", "blastoise", "venusaur", "growlithe", "spearow", "poliwag", "magmar", "diglett", "machop", "jigglypuff", "arcanine", "energy"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only Intro Pack card (no English print); _norm strips CJK so matching rides on the Latin tokens (squirtle / squirtle deck / intro pack / 007) sellers include, and 'any' keeps terse listings a 'japanese' filter would drop.",
       "language": "any",
@@ -399,15 +402,15 @@
     },
     {
       "name": "Light Arcanine No.059 — Neo Destiny (Japanese, 2001)",
-      "_note": "Pokemon, Japanese (2001 Neo Destiny / 'Darkness, and to Light...' / Neo 4, Holo Rare, illus. Atsuko Nishida). Light Arcanine, No.059 (059 = Arcanine's National Dex number, printed on the card). Identity: the contiguous 'light arcanine' + '059'. 'light arcanine' is required as ONE token (norm 'lightarcanine'), NOT bare 'light' — bare 'light' collides with 'Lightly Played'/'Light Play' condition notes. There is ALSO an English Light Arcanine (Neo Destiny 26/105); requiring '059' selects the Japanese print (English is 26/105, has no '059'), and exclude '26/105' backstops the rare English listing carrying a stray '059' (e.g. a $0.59 price). Rejects Dark Arcanine (Team Rocket, also dex 059), other Light Pokemon (Light Dragonite), base Arcanine, and lightly-played non-Light Arcanine. Verified offline FN=0/FP=0 and live-scraped (148 distinct -> 47 accepted, all genuine Japanese No.059, 0 English leak; even a mislabeled 'Neo Discovery' listing that is really the No.059 card is caught). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "_note": "Pokemon, Japanese (2001 Neo Destiny / 'Darkness, and to Light...' / Neo 4, Holo Rare, illus. Atsuko Nishida). Light Arcanine, No.059 (059 = Arcanine's National Dex number, printed on the card). Identity: the contiguous 'light arcanine' + a JP number/subtitle token (['059','no.59','no. 59','#59','darkness and to light','neo 4', ...]). 'light arcanine' is required as ONE token (norm 'lightarcanine'), NOT bare 'light' — bare 'light' collides with 'Lightly Played'/'Light Play' condition notes. The number clause is deliberately broad: JP sellers write No.059 / No.59 / #59 / bare 59, and often ONLY the JP subtitle 'Darkness, and to Light...' or 'Neo 4' (so a plain-'059' require systematically dropped #59-style and numberless JP slabs). There is ALSO an English Light Arcanine (Neo Destiny 12/105); the JP tokens select the Japanese print (English is 12/105 — neither '059'/'59' nor the JP subtitle), and exclude '12/105' backstops any English listing carrying a stray '59'. Rejects Dark Arcanine (Team Rocket, also dex 059), other Light Pokemon (Light Dragonite), base Arcanine, and lightly-played non-Light Arcanine. Verified offline FN=0/FP=0 and live-scraped (149 distinct -> 60 accepted, all genuine Japanese No.059, 0 English 12/105 leak). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "light arcanine 059 neo destiny japanese",
         "light arcanine no.059 holo japanese 2001",
         "pokemon japanese light arcanine neo destiny holo rare",
         "light arcanine 059 darkness and to light"
       ],
-      "require": ["light arcanine", "059"],
-      "exclude": ["26/105"],
+      "require": ["light arcanine", ["059", "no.59", "no. 59", "#59", "darkness and to light", "darkness, and to light", "darkness & to light", "neo 4"]],
+      "exclude": ["12/105"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only Neo Destiny print (the English Light Arcanine is 26/105, excluded by the '059' anchor + the 26/105 exclude); _norm strips CJK so matching rides on 'light arcanine' + '059', and 'any' keeps terse listings a 'japanese' filter would drop.",
       "language": "any",
@@ -416,7 +419,7 @@
     },
     {
       "name": "Houndoom H11/H32 — Aquapolis Holo Rare (English, 2003)",
-      "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare, illus. Hajime Kusajima). Houndoom, holo #H11/H32. Identity: 'houndoom' + 'aquapolis' + 'h11'. The set name 'aquapolis' is MANDATORY: all three e-Card sets (Expedition/Aquapolis/Skyridge) use H1-H32 holo numbering, and Houndoom is H11/H32 in BOTH Aquapolis AND Skyridge — verified live that many genuine 'Houndoom Skyridge H11/H32' listings exist, so 'houndoom'+'h11' alone would false-match the Skyridge card. require 'h11' catches both '#H11' and 'H11/H32' (norm 'h11h32' contains 'h11'). exclude 'sticker' drops novelty 'Credit Card Sticker' items. Rejects the Skyridge Houndoom H11/H32, the terse no-set 'Houndoom H11/H32 Holo' (ambiguous — could be Skyridge, so correctly not fired), Houndour H10/H32, the non-holo Aquapolis Houndoom (43/147), and lots. Aquapolis is English-only (no foreign print exists), so language 'english' keeps English + German-seller listings (read as 'unknown') WITHOUT needing foreign excludes (unlike the shared-number Lugia/Espeon watches). Verified offline FN=0/FP=0 and live-scraped (159 distinct -> 20 accepted, all genuine Aquapolis H11/H32, 0 Skyridge leak, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare, illus. Hajime Kusajima). Houndoom, holo #H11/H32. Identity: 'houndoom' + 'aquapolis' + 'h11'. The set name 'aquapolis' is MANDATORY: all three e-Card sets (Expedition/Aquapolis/Skyridge) use H1-H32 holo numbering, and Houndoom is H11/H32 in BOTH Aquapolis AND Skyridge — verified live that many genuine 'Houndoom Skyridge H11/H32' listings exist, so 'houndoom'+'h11' alone would false-match the Skyridge card. require 'h11' catches both '#H11' and 'H11/H32' (norm 'h11h32' contains 'h11'). exclude 'sticker' drops novelty 'Credit Card Sticker' items. Rejects the Skyridge Houndoom H11/H32, the terse no-set 'Houndoom H11/H32 Holo' (ambiguous — could be Skyridge, so correctly not fired), Houndour H10/H32, the non-holo Aquapolis Houndoom (43/147), and lots. Aquapolis also has DE/FR/IT/ES/PT prints, but the monitor's language layer detects EU-language markers and drops them, so language 'english' scopes to the English card while keeping terse / German-seller titles read as 'unknown'. Verified offline FN=0/FP=0 and live-scraped (159 distinct -> 20 accepted, all genuine Aquapolis H11/H32, 0 Skyridge leak, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "houndoom aquapolis h11 holo",
         "houndoom h11/h32 aquapolis 2003 pokemon",
@@ -426,14 +429,14 @@
       "require": ["houndoom", "aquapolis", "h11"],
       "exclude": ["sticker"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'english': Aquapolis is an English-only WOTC set (no foreign-language print exists), so 'english' — which also keeps terse / German-seller titles read as 'unknown' — needs NO foreign-word excludes (unlike the shared-number Lugia/Espeon watches); it just drops any CJK/Japanese-e-Card listings, which use different numbering anyway.",
+      "_language_note": "language 'english': Aquapolis was printed in EN + DE/FR/IT/ES/PT (NOT English-only), but the monitor's language layer (title_language) detects EU-language markers (Italian/ITA/Deutsch/etc. as whole words) and drops those foreign prints, so 'english' scopes to the English card while keeping terse listings (no language word -> 'unknown').",
       "language": "english",
       "min_price": null,
       "max_price": null
     },
     {
       "name": "Slowking H22/H32 — Aquapolis Holo Rare (English, 2003)",
-      "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare). Slowking, holo #H22/H32. Identity: 'slowking' + 'aquapolis' + 'h22'. Set name 'aquapolis' is required — all three e-Card sets (Expedition/Aquapolis/Skyridge) share H1-H32 holo numbering, so the set name prevents cross-set collisions (per the Houndoom-in-both-Aquapolis-and-Skyridge precedent). require 'h22' catches '#H22' and 'H22/H32' (norm 'h22h32'). exclude 'sticker' drops novelty items. Rejects Skyridge / terse-no-set Slowking, the non-holo Aquapolis Slowking (55/147), and lots. Aquapolis is English-only, so language 'english' (keeps German-seller titles read as 'unknown') needs no foreign excludes. Verified offline FN=0/FP=0 and live-scraped (105 distinct -> 17 accepted, all genuine Aquapolis H22/H32, 0 Skyridge leak, 0 foreign, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare). Slowking, holo #H22/H32. Identity: 'slowking' + 'aquapolis' + 'h22'. Set name 'aquapolis' is required — all three e-Card sets (Expedition/Aquapolis/Skyridge) share H1-H32 holo numbering, so the set name prevents cross-set collisions (per the Houndoom-in-both-Aquapolis-and-Skyridge precedent). require 'h22' catches '#H22' and 'H22/H32' (norm 'h22h32'). exclude 'sticker' drops novelty items. Rejects Skyridge / terse-no-set Slowking, the non-holo Aquapolis Slowking (55/147), and lots. Aquapolis also has DE/FR/IT/ES/PT prints, but the language layer's EU-marker detection drops them, so language 'english' (keeps German-seller titles read as 'unknown') scopes to the English card. Verified offline FN=0/FP=0 and live-scraped (105 distinct -> 17 accepted, all genuine Aquapolis H22/H32, 0 Skyridge leak, 0 foreign, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "slowking aquapolis h22 holo",
         "slowking h22/h32 aquapolis 2003 pokemon",
@@ -443,24 +446,24 @@
       "require": ["slowking", "aquapolis", "h22"],
       "exclude": ["sticker"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'english': Aquapolis is an English-only WOTC set, so 'english' (which keeps terse / German-seller titles read as 'unknown') needs no foreign-word excludes; verified 0 foreign leak in the live scrape.",
+      "_language_note": "language 'english': Aquapolis was printed in EN + DE/FR/IT/ES/PT (it is NOT English-only), but the monitor's language layer (title_language) detects EU-language markers — Italian/Italiano/ITA/Deutsch/French/etc. as whole words — and drops those foreign prints, so 'english' scopes to the English card while keeping terse listings (no language word -> 'unknown'). Residual: bare 'FR' stays uncatchable (it collides with the 'Fair' condition grade).",
       "language": "english",
       "min_price": null,
       "max_price": null
     },
     {
       "name": "Azumarill H4/H32 — Aquapolis Holo Rare (English, 2003)",
-      "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare). Azumarill, holo #H4/H32. Identity: 'azumarill' + 'aquapolis' + 'h4'. Set name 'aquapolis' is required (the three e-Card sets share H1-H32 holo numbering — Houndoom precedent). require 'h4' catches '#H4' and 'H4/H32' (norm 'h4h32'); 'h4' matches only 'H4' (h followed by 4), never H14/H24/etc. exclude 'sticker' drops novelty items. Rejects Skyridge / terse-no-set Azumarill, Marill (require 'azumarill'), the non-holo Aquapolis Azumarill, and lots. Aquapolis is English-only, so language 'english' needs no foreign excludes. Verified offline FN=0/FP=0 and live-scraped (105 distinct -> 18 accepted, all genuine Aquapolis H4/H32, 0 Skyridge leak, 0 foreign, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare). Azumarill, holo #H4/H32. Identity: 'azumarill' + 'aquapolis' + 'h4'. Set name 'aquapolis' is required (the three e-Card sets share H1-H32 holo numbering — Houndoom precedent). require 'h4' catches '#H4' and 'H4/H32' (norm 'h4h32'); 'h4' matches only 'H4' (h followed by 4), never H14/H24/etc. exclude 'sticker' drops novelty items. Rejects Skyridge / terse-no-set Azumarill, Marill (require 'azumarill'), the non-holo Aquapolis Azumarill, and lots. Aquapolis also has DE/FR/IT/ES/PT prints, but the language layer's EU-marker detection drops them, so language 'english' scopes to the English card. Verified offline FN=0/FP=0 and live-scraped (105 distinct -> 18 accepted, all genuine Aquapolis H4/H32, 0 Skyridge leak, 0 foreign, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "azumarill aquapolis h4 holo",
         "azumarill h4/h32 aquapolis 2003 pokemon",
         "pokemon aquapolis azumarill holo e-reader",
         "azumarill aquapolis #h4 holo rare"
       ],
-      "require": ["azumarill", "aquapolis", "h4"],
+      "require": ["azumarill", "aquapolis", ["h4", "h04"]],
       "exclude": ["sticker"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'english': Aquapolis is an English-only WOTC set, so 'english' (which keeps terse / German-seller titles read as 'unknown') needs no foreign-word excludes; verified 0 foreign leak in the live scrape.",
+      "_language_note": "language 'english': Aquapolis was printed in EN + DE/FR/IT/ES/PT (it is NOT English-only), but the monitor's language layer (title_language) detects EU-language markers — Italian/Italiano/ITA/Deutsch/French/etc. as whole words — and drops those foreign prints, so 'english' scopes to the English card while keeping terse listings (no language word -> 'unknown'). Residual: bare 'FR' stays uncatchable (it collides with the 'Fair' condition grade).",
       "language": "english",
       "min_price": null,
       "max_price": null
@@ -484,7 +487,7 @@
     },
     {
       "name": "Umbreon H29/H32 — Aquapolis Holo Rare (English, 2003)",
-      "_note": "Pokemon, English (2003 WOTC Aquapolis e-Card, Holo Rare, illus. Mitsuhiro Arita). Umbreon holo #H29/H32. Identity: 'umbreon' + 'aquapolis' + 'h29'. Set name 'aquapolis' required — the three e-Card sets (Expedition/Aquapolis/Skyridge) share H1-H32 holo numbering (sellers even tag 'No Skyridge' due to the confusion); Houndoom precedent. require 'h29' catches '#H29' and 'H29/H32'. exclude 'sticker'; the global DEFAULT_EXCLUDE drops the 'Proxy' fan-made copies seen on Etsy/eBay. Distinct from the existing Karen's Umbreon 091/141 (VS) watch (different number/set — cross-checked, 0 double-fire). Aquapolis is English-only, so language 'english' needs no foreign excludes. Verified offline FN=0/FP=0 and live-scraped (107 distinct -> 29 accepted, all genuine Aquapolis H29/H32, 0 Skyridge leak). Vintage PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "_note": "Pokemon, English (2003 WOTC Aquapolis e-Card, Holo Rare, illus. Mitsuhiro Arita). Umbreon holo #H29/H32. Identity: 'umbreon' + 'aquapolis' + 'h29'. Set name 'aquapolis' required — the three e-Card sets (Expedition/Aquapolis/Skyridge) share H1-H32 holo numbering (sellers even tag 'No Skyridge' due to the confusion); Houndoom precedent. require 'h29' catches '#H29' and 'H29/H32'. exclude 'sticker'; the global DEFAULT_EXCLUDE drops the 'Proxy' fan-made copies seen on Etsy/eBay. Distinct from the existing Karen's Umbreon 091/141 (VS) watch (different number/set — cross-checked, 0 double-fire). Aquapolis also has DE/FR/IT/ES/PT prints, but the language layer's EU-marker detection drops them, so language 'english' scopes to the English card. Verified offline FN=0/FP=0 and live-scraped (107 distinct -> 29 accepted, all genuine Aquapolis H29/H32, 0 Skyridge leak). Vintage PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "umbreon aquapolis h29 holo",
         "umbreon h29/h32 aquapolis 2003 pokemon",
@@ -494,7 +497,7 @@
       "require": ["umbreon", "aquapolis", "h29"],
       "exclude": ["sticker"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'english': Aquapolis is an English-only WOTC set, so 'english' (which keeps terse / German-seller titles read as 'unknown') needs no foreign-word excludes; verified 0 foreign leak in the live scrape.",
+      "_language_note": "language 'english': Aquapolis was printed in EN + DE/FR/IT/ES/PT (it is NOT English-only), but the monitor's language layer (title_language) detects EU-language markers — Italian/Italiano/ITA/Deutsch/French/etc. as whole words — and drops those foreign prints, so 'english' scopes to the English card while keeping terse listings (no language word -> 'unknown'). Residual: bare 'FR' stays uncatchable (it collides with the 'Fair' condition grade).",
       "language": "english",
       "min_price": null,
       "max_price": null
@@ -559,7 +562,7 @@
         "pokemon japanese vs morty's ninetales",
         "モーティ キュウコン vs"
       ],
-      "require": ["morty", "ninetales"],
+      "match_any": [["morty", "ninetales"], ["ninetales", "020/141"]],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only VS set (no English print — the English Gym sets use Kanto leaders, not Morty); _norm strips CJK so matching rides on the Latin 'morty'/'ninetales' tokens, and 'any' keeps terse listings a 'japanese' filter would drop.",
       "language": "any",

@@ -241,6 +241,17 @@ _LANG_JP = re.compile(r"\b(japanese|japan|jpn|jp)\b", re.IGNORECASE)
 _LANG_CN = re.compile(r"\b(chinese|china|chn|cn)\b", re.IGNORECASE)
 _LANG_KR = re.compile(r"\b(korean|korea|kor)\b", re.IGNORECASE)
 _LANG_EN = re.compile(r"\b(english|eng)\b", re.IGNORECASE)
+# European-language prints: WOTC and modern sets were printed in DE/FR/IT/ES/PT/NL, all
+# SHARING the English collector number — so an 'english' watch must DROP them (they are a
+# different physical card). Full language words + ONLY the safe short abbreviations
+# 'ita'/'ital'/'deu'. Deliberately NOT 'fr'/'de'/'it'/'es' — those collide with English
+# words and with the 'FR' = Fair condition-grade abbreviation (would drop real English cards).
+_LANG_EU = re.compile(
+    r"\b(?:german|deutsch|french|francais|français|italian|italiano|italien|"
+    r"spanish|espanol|español|portuguese|portugues|português|dutch|nederlands|"
+    r"allemand|spagnolo|tedesco|ita|ital|deu)\b",
+    re.IGNORECASE,
+)
 # Sellers of English cards often write "English NOT Japanese" / "not a Japan import" /
 # "not the Japanese version"; the bare foreign word would otherwise flip the listing to
 # that language and get it dropped by an English-only watch. Strip negated mentions before
@@ -249,7 +260,7 @@ _LANG_EN = re.compile(r"\b(english|eng)\b", re.IGNORECASE)
 # keeps it from over-stripping "not the cheap Japanese knockoff" (an intervening non-language
 # word blocks the match). The trailing group extends the strip across an ENUMERATED run
 # ("not Japanese Chinese", "not Japanese/Korean") so a trailing language can't survive.
-_NEG_LW = r"(?:japanese|japan|jpn|jp|chinese|china|chn|cn|korean|korea|kor)"
+_NEG_LW = r"(?:japanese|japan|jpn|jp|chinese|china|chn|cn|korean|korea|kor|german|deutsch|french|francais|italian|italiano|spanish|espanol|portuguese|portugues|dutch|nederlands|ita|ital|deu)"
 _NEG_LANG = re.compile(
     r"\bno[tn]\s+(?:(?:an?|the|this|that|these|those|any)\s+|from\s+)?" + _NEG_LW
     + r"(?:\s*(?:[/,&]|or|nor|and)?\s*" + _NEG_LW + r")*\b"
@@ -275,6 +286,8 @@ def title_language(title: str) -> str:
         return "korean"
     if _CJK.search(title):
         return "cjk"
+    if _LANG_EU.search(title):
+        return "eu"
     if _LANG_EN.search(title):
         return "english"
     return "unknown"
@@ -311,7 +324,7 @@ def passes_language(title: str, want: str) -> bool:
 # "extended art"/"extended artwork" cases are acrylic display-case MERCH printed with
 # the card's art, not the card itself — drop them ("extendedart" is collision-free).
 DEFAULT_EXCLUDE = ["proxy", "orica", "oricard", "custommade", "handmade", "metalcard",
-                   "sealedbooster", "extended art", "custom art", "hand painted"]
+                   "sealedbooster", "extended art", "custom art", "hand painted", "fan art"]
 
 
 def _norm(s: str) -> str:
