@@ -430,6 +430,40 @@
       "language": "english",
       "min_price": null,
       "max_price": null
+    },
+    {
+      "name": "Slowking H22/H32 — Aquapolis Holo Rare (English, 2003)",
+      "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare). Slowking, holo #H22/H32. Identity: 'slowking' + 'aquapolis' + 'h22'. Set name 'aquapolis' is required — all three e-Card sets (Expedition/Aquapolis/Skyridge) share H1-H32 holo numbering, so the set name prevents cross-set collisions (per the Houndoom-in-both-Aquapolis-and-Skyridge precedent). require 'h22' catches '#H22' and 'H22/H32' (norm 'h22h32'). exclude 'sticker' drops novelty items. Rejects Skyridge / terse-no-set Slowking, the non-holo Aquapolis Slowking (55/147), and lots. Aquapolis is English-only, so language 'english' (keeps German-seller titles read as 'unknown') needs no foreign excludes. Verified offline FN=0/FP=0 and live-scraped (105 distinct -> 17 accepted, all genuine Aquapolis H22/H32, 0 Skyridge leak, 0 foreign, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "slowking aquapolis h22 holo",
+        "slowking h22/h32 aquapolis 2003 pokemon",
+        "pokemon aquapolis slowking holo e-reader",
+        "slowking aquapolis #h22 holo rare"
+      ],
+      "require": ["slowking", "aquapolis", "h22"],
+      "exclude": ["sticker"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'english': Aquapolis is an English-only WOTC set, so 'english' (which keeps terse / German-seller titles read as 'unknown') needs no foreign-word excludes; verified 0 foreign leak in the live scrape.",
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Azumarill H4/H32 — Aquapolis Holo Rare (English, 2003)",
+      "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare). Azumarill, holo #H4/H32. Identity: 'azumarill' + 'aquapolis' + 'h4'. Set name 'aquapolis' is required (the three e-Card sets share H1-H32 holo numbering — Houndoom precedent). require 'h4' catches '#H4' and 'H4/H32' (norm 'h4h32'); 'h4' matches only 'H4' (h followed by 4), never H14/H24/etc. exclude 'sticker' drops novelty items. Rejects Skyridge / terse-no-set Azumarill, Marill (require 'azumarill'), the non-holo Aquapolis Azumarill, and lots. Aquapolis is English-only, so language 'english' needs no foreign excludes. Verified offline FN=0/FP=0 and live-scraped (105 distinct -> 18 accepted, all genuine Aquapolis H4/H32, 0 Skyridge leak, 0 foreign, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "azumarill aquapolis h4 holo",
+        "azumarill h4/h32 aquapolis 2003 pokemon",
+        "pokemon aquapolis azumarill holo e-reader",
+        "azumarill aquapolis #h4 holo rare"
+      ],
+      "require": ["azumarill", "aquapolis", "h4"],
+      "exclude": ["sticker"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'english': Aquapolis is an English-only WOTC set, so 'english' (which keeps terse / German-seller titles read as 'unknown') needs no foreign-word excludes; verified 0 foreign leak in the live scrape.",
+      "language": "english",
+      "min_price": null,
+      "max_price": null
     }
   ]
 }
