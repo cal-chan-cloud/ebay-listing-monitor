@@ -464,6 +464,123 @@
       "language": "english",
       "min_price": null,
       "max_price": null
+    },
+    {
+      "name": "Shining Gyarados 65/64 — Neo Revelation Secret Rare (English, 2001)",
+      "_note": "Pokemon, English (2001 WOTC Neo Revelation, Secret Rare Holo, a 'Shining' Pokemon). Shining Gyarados 65/64. require 'shining gyarados' (distinctive) + ('65/64' OR 'neo revelation') to scope to the English print (the other Shining Gyarados is the Japanese Neo-Destiny-era one, which says neither). Rejects the regular Gyarados (6/64), Shining Magikarp, Gyarados ex, and — via language 'english' + EU-language excludes (Neo Revelation had German/French/etc. prints sharing 65/64) — foreign prints. Verified offline FN=0/FP=0 and live-scraped (67 distinct -> 23 accepted, all genuine 65/64, 0 foreign leak). Note: a 2-card 'Shining Gyarados + Shining Magikarp' listing that omits Magikarp's number is accepted (contains the target). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "shining gyarados 65/64 neo revelation holo",
+        "shining gyarados neo revelation secret rare",
+        "pokemon shining gyarados 65/64 1st edition",
+        "shining gyarados neo revelation english holo"
+      ],
+      "require": ["shining gyarados", ["65/64", "neo revelation"]],
+      "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'english' + EU-language excludes: Neo Revelation's 65/64 is shared across Western-language prints, so the markers scope to English while terse English listings (no language word -> 'unknown') are kept.",
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Umbreon H29/H32 — Aquapolis Holo Rare (English, 2003)",
+      "_note": "Pokemon, English (2003 WOTC Aquapolis e-Card, Holo Rare, illus. Mitsuhiro Arita). Umbreon holo #H29/H32. Identity: 'umbreon' + 'aquapolis' + 'h29'. Set name 'aquapolis' required — the three e-Card sets (Expedition/Aquapolis/Skyridge) share H1-H32 holo numbering (sellers even tag 'No Skyridge' due to the confusion); Houndoom precedent. require 'h29' catches '#H29' and 'H29/H32'. exclude 'sticker'; the global DEFAULT_EXCLUDE drops the 'Proxy' fan-made copies seen on Etsy/eBay. Distinct from the existing Karen's Umbreon 091/141 (VS) watch (different number/set — cross-checked, 0 double-fire). Aquapolis is English-only, so language 'english' needs no foreign excludes. Verified offline FN=0/FP=0 and live-scraped (107 distinct -> 29 accepted, all genuine Aquapolis H29/H32, 0 Skyridge leak). Vintage PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "umbreon aquapolis h29 holo",
+        "umbreon h29/h32 aquapolis 2003 pokemon",
+        "pokemon aquapolis umbreon holo e-reader",
+        "umbreon aquapolis #h29 holo rare"
+      ],
+      "require": ["umbreon", "aquapolis", "h29"],
+      "exclude": ["sticker"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'english': Aquapolis is an English-only WOTC set, so 'english' (which keeps terse / German-seller titles read as 'unknown') needs no foreign-word excludes; verified 0 foreign leak in the live scrape.",
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Charizard 100/97 — EX Dragon Secret Rare (English, 2003)",
+      "_note": "Pokemon, English (2003 EX Dragon, Secret Rare Holo, illus. Mitsuhiro Arita). Charizard 100/97 (100 > the 97-card set = secret rare). require 'charizard' + the full '100/97' (norm '10097', unique to this card) — bare 'charizard'/'100' are hugely collision-prone. Rejects Base Set Charizard (4/102), Charizard ex 100/100 (Crystal Guardians), Charmander, and — via language 'english' + EU-language excludes (EX Dragon had German/French/etc. prints sharing 100/97) — foreign prints. Verified offline FN=0/FP=0 and live-scraped (90 distinct -> 19 accepted, all genuine 100/97 EX Dragon incl. reverse-holo variants, 0 foreign leak). Vintage PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "charizard 100/97 ex dragon holo secret rare",
+        "pokemon ex dragon charizard 100/97 holo",
+        "charizard 100/97 dragon secret rare 2003",
+        "charizard 100 97 ex dragon holo english"
+      ],
+      "require": ["charizard", "100/97"],
+      "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'english' + EU-language excludes: EX Dragon's 100/97 is shared across Western-language prints, so the markers scope to English while terse English listings are kept.",
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Dark Dragonair 38/110 Reverse Holo — Legendary Collection (English, 2002)",
+      "_note": "Pokemon, English (2002 Legendary Collection, the REVERSE-HOLO variant of Dark Dragonair 38/110). Identity: 'dark dragonair' + '38/110' + 'reverse'. The 'reverse' token is intentional — Legendary Collection printed both a regular and a reverse-holo (mirror-foil) version of each card, and this watch tracks the reverse per request; regular/non-specified listings are deliberately dropped (the regular is a different, cheaper card). 'reverse' catches 'Reverse Holo'/'Reverse Foil'. Rejects the regular Dark Dragonair, Dark Dragonite 22/110, Jungle Dragonair, and (language 'english' + EU excludes) foreign prints. Verified offline FN=0/FP=0 and live-scraped (100 distinct -> 15 accepted, all genuine reverse-holo 38/110; 34 regular/ambiguous listings correctly excluded). Note: a genuine reverse-holo listing that omits the word 'reverse' would be missed (precision-first). PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "dark dragonair 38/110 legendary collection reverse holo",
+        "dark dragonair reverse holo legendary collection 2002",
+        "pokemon dark dragonair 38/110 reverse holo",
+        "dark dragonair legendary collection 38 reverse"
+      ],
+      "require": ["dark dragonair", "38/110", "reverse"],
+      "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'english' + EU-language excludes scope to the English print; terse English listings (no language word -> 'unknown') are kept.",
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Giratina 10/127 — Platinum Holo Rare (English, 2009)",
+      "_note": "Pokemon, English (2009 Platinum base set, Holo Rare, illus. Hajime Kusajima). Giratina 10/127. require 'giratina' + the full '10/127' (norm '10127', unique to Platinum) — bare 'giratina'/'10' collide, notably with the existing Giratina V 186/196 (Lost Origin) watch (cross-checked, 0 double-fire). Catches both the holo and reverse-holo 10/127 (same card number). Rejects the Giratina V 186/196, the Origin Forme, and (language 'english' + EU excludes; Platinum had foreign prints sharing 10/127) foreign prints. Verified offline FN=0/FP=0 and live-scraped (79 distinct -> 31 accepted, all genuine Platinum 10/127 incl. 'Lv.63'/reverse forms, 0 foreign leak; listings that omit the word 'platinum' still match since 10/127 is Platinum-unique). PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "giratina 10/127 platinum holo rare",
+        "pokemon platinum giratina 10/127 2009",
+        "giratina 10/127 platinum holo english",
+        "giratina platinum #10 holo rare"
+      ],
+      "require": ["giratina", "10/127"],
+      "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'english' + EU-language excludes: Platinum's 10/127 is shared across Western-language prints, so the markers scope to English while terse English listings are kept.",
+      "language": "english",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Morty's Ninetales 020/141 — Pokemon VS (Japanese, 2001)",
+      "_note": "Pokemon, Japanese (2001 Pokemon Card VS, the gym-leader-themed set, #020/141, illus. Naoyo Kimura). Identity: 'morty' + 'ninetales' — distinctive and unique (the VS set is the only 'Morty's Ninetales'; Morty is a Johto gym leader absent from the English Gym Heroes/Challenge sets, which are Kanto leaders). No number needed. Rejects base-set Ninetales, Blaine's Ninetales (Gym Challenge), Morty's Gengar, and the sibling Karen's Umbreon (VS) — cross-checked 0 double-fire. Verified offline FN=0/FP=0 and live-scraped (118 distinct -> 21 accepted, all genuine Morty's Ninetales 020/141). Vintage PSA 8/9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "morty's ninetales vs series japanese",
+        "morty ninetales 020/141 pokemon vs 1st edition",
+        "pokemon japanese vs morty's ninetales",
+        "モーティ キュウコン vs"
+      ],
+      "require": ["morty", "ninetales"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'any': Japan-only VS set (no English print — the English Gym sets use Kanto leaders, not Morty); _norm strips CJK so matching rides on the Latin 'morty'/'ninetales' tokens, and 'any' keeps terse listings a 'japanese' filter would drop.",
+      "language": "any",
+      "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Articuno Holo #144 — 1998 Japanese Red/Green Quick Starter Gift Set",
+      "_note": "Pokemon, Japanese (1998 Red/Green 'Quick Starter Gift Set', holo Articuno, dex #144). Identity: 'articuno' + a set gate ['red green','red/green','gift set','quick starter']. Bare '144' is only Articuno's National Dex number (on many Articuno cards), so identity rides on 'articuno' + the gift-set name, NOT the number. Rejects the Fossil Articuno (17/62), plain Base Set Articuno, the 1999 Meiji promo Articuno, and other gift-set holos (Zapdos/Moltres lack 'articuno'). Verified offline FN=0/FP=0 and live-scraped (141 distinct -> 13 accepted, all genuine Red/Green Gift Set Articuno #144; the forms 'Red/Green Gift Set' / 'Quick Starter Gift Set' / 'Red Green Quick Starter' all caught). Vintage PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "articuno 1998 japanese red green gift set holo",
+        "articuno holo japanese quick starter gift set 144",
+        "articuno 144 red/green deck gift set holo",
+        "pokemon japanese red green gift set articuno holo"
+      ],
+      "require": ["articuno", ["red green", "red/green", "gift set", "quick starter"]],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'any': Japan-only 1998 gift-set product; _norm strips CJK so matching rides on 'articuno' + the gift-set name, and 'any' keeps terse listings a 'japanese' filter would drop.",
+      "language": "any",
+      "min_price": null,
+      "max_price": null
     }
   ]
 }

@@ -49,6 +49,13 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 - **Houndoom H11/H32 Aquapolis** — **English** 2003 WOTC e-Card Holo Rare (set name `aquapolis` is **required**: Houndoom is *also* `H11/H32` in Skyridge, so `houndoom`+`h11` alone would false-match it; excludes novelty `sticker` items)
 - **Slowking H22/H32 Aquapolis** — **English** 2003 WOTC e-Card Holo Rare (`slowking`+`aquapolis`+`h22`; set name required for the shared e-Card `H`-numbering, `sticker` excluded)
 - **Azumarill H4/H32 Aquapolis** — **English** 2003 WOTC e-Card Holo Rare (`azumarill`+`aquapolis`+`h4`; `h4` matches only `H4`, never `H14`/`H24`; `sticker` excluded)
+- **Umbreon H29/H32 Aquapolis** — **English** 2003 WOTC e-Card Holo Rare (`umbreon`+`aquapolis`+`h29`; set name required for the shared e-Card `H`-numbering; distinct from the Karen's Umbreon VS watch)
+- **Shining Gyarados 65/64 Neo Revelation** — **English** 2001 WOTC Secret Rare Holo (`shining gyarados` + `65/64`/`neo revelation`; EU-language prints excluded)
+- **Charizard 100/97 EX Dragon** — **English** 2003 Secret Rare Holo (`charizard` + the full `100/97`, since bare `charizard`/`100` are collision-prone; EU prints excluded)
+- **Dark Dragonair 38/110 Legendary Collection** — **English** 2002 **reverse holo** (`dark dragonair`+`38/110`+`reverse`; the regular non-reverse version is deliberately excluded per request)
+- **Giratina 10/127 Platinum** — **English** 2009 Holo Rare (`giratina` + the full `10/127`; distinct from the Giratina V `186/196` price-alert watch)
+- **Morty's Ninetales 020/141 Pokemon VS** — **Japanese** 2001 gym-leader set (`morty`+`ninetales`; unique name, no number needed)
+- **Articuno Holo #144 Red/Green Gift Set** — **Japanese** 1998 Quick Starter Gift Set (`articuno` + the gift-set name, since bare `144` is just Articuno's Pokédex number)
 
 > Vintage grade note: for the older Rayquaza cards (3/17, 123/124), graded copies are
 > commonly **PSA 8/9**, which the house grade buckets treat as "other" and don't alert
