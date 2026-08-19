@@ -46,6 +46,7 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 - **Lugia 9/111 Neo Genesis** — **English** 2000 WOTC Holo Rare (the set's chase card; keyed on `lugia` + `neo genesis`, since `9/111`→`9111` collides with every `X9/111` card and is redundant)
 - **Lugia ex 031/PLAY** — **Japanese** 2006 "Players" club 4th-season subscription promo (the *ex*-mechanic Lugia; keyed on `031/PLAY` + Players-Club/4th-Season phrases, never bare `031` or `ex`; excludes the stray-`031` Lugia confusables — Unseen Forces `105/115`, Silver Tempest `186/195`, etc.)
 - **Light Arcanine No.059 Neo Destiny** — **Japanese** 2001 Holo Rare (keyed on the contiguous `light arcanine` + `059`; bare `light` would collide with "lightly played", and `059` selects the Japanese print over the English `26/105`)
+- **Houndoom H11/H32 Aquapolis** — **English** 2003 WOTC e-Card Holo Rare (set name `aquapolis` is **required**: Houndoom is *also* `H11/H32` in Skyridge, so `houndoom`+`h11` alone would false-match it; excludes novelty `sticker` items)
 
 > Vintage grade note: for the older Rayquaza cards (3/17, 123/124), graded copies are
 > commonly **PSA 8/9**, which the house grade buckets treat as "other" and don't alert

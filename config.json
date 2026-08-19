@@ -413,6 +413,23 @@
       "language": "any",
       "min_price": null,
       "max_price": null
+    },
+    {
+      "name": "Houndoom H11/H32 — Aquapolis Holo Rare (English, 2003)",
+      "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare, illus. Hajime Kusajima). Houndoom, holo #H11/H32. Identity: 'houndoom' + 'aquapolis' + 'h11'. The set name 'aquapolis' is MANDATORY: all three e-Card sets (Expedition/Aquapolis/Skyridge) use H1-H32 holo numbering, and Houndoom is H11/H32 in BOTH Aquapolis AND Skyridge — verified live that many genuine 'Houndoom Skyridge H11/H32' listings exist, so 'houndoom'+'h11' alone would false-match the Skyridge card. require 'h11' catches both '#H11' and 'H11/H32' (norm 'h11h32' contains 'h11'). exclude 'sticker' drops novelty 'Credit Card Sticker' items. Rejects the Skyridge Houndoom H11/H32, the terse no-set 'Houndoom H11/H32 Holo' (ambiguous — could be Skyridge, so correctly not fired), Houndour H10/H32, the non-holo Aquapolis Houndoom (43/147), and lots. Aquapolis is English-only (no foreign print exists), so language 'english' keeps English + German-seller listings (read as 'unknown') WITHOUT needing foreign excludes (unlike the shared-number Lugia/Espeon watches). Verified offline FN=0/FP=0 and live-scraped (159 distinct -> 20 accepted, all genuine Aquapolis H11/H32, 0 Skyridge leak, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
+      "queries": [
+        "houndoom aquapolis h11 holo",
+        "houndoom h11/h32 aquapolis 2003 pokemon",
+        "pokemon aquapolis houndoom holo e-reader",
+        "houndoom aquapolis #h11 holo rare"
+      ],
+      "require": ["houndoom", "aquapolis", "h11"],
+      "exclude": ["sticker"],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'english': Aquapolis is an English-only WOTC set (no foreign-language print exists), so 'english' — which also keeps terse / German-seller titles read as 'unknown' — needs NO foreign-word excludes (unlike the shared-number Lugia/Espeon watches); it just drops any CJK/Japanese-e-Card listings, which use different numbering anyway.",
+      "language": "english",
+      "min_price": null,
+      "max_price": null
     }
   ]
 }
