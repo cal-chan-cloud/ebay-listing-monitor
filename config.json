@@ -13,6 +13,7 @@
   "watches": [
     {
       "name": "Luffy ST26-005 SP",
+      "_typical_price": "asking ~$700 raw (2026-08)",
       "queries": [
         "luffy st26-005 sp",
         "luffy st26-005 adventure island",
@@ -27,6 +28,7 @@
     },
     {
       "name": "Luffy OP05-119 SEC (Alt / Manga Art)",
+      "_typical_price": "asking ~$110 raw (mixed/variable listings) / ~$21,000 PSA 10 (2026-08)",
       "queries": [
         "luffy op05-119 manga art",
         "luffy op05-119 sec alternate art"
@@ -40,6 +42,7 @@
     },
     {
       "name": "Luffy ST10-006 One Piece Day Dallas Promo",
+      "_typical_price": "asking ~$520 raw / ~$1,700 PSA 10 (2026-08)",
       "_note": "One Piece. The Monkey D. Luffy (One Piece Day Dallas 2025) ST10-006 Super Rare foil promo (Gear 5, illus. Otton) — a US-event exclusive. Identify by the EVENT (one piece day + dallas) rather than the number, because (a) the regular ST10-006 is the Ultra Deck: The Three Captains starter card (no 'dallas'), and (b) some sellers write just '006' without 'ST10-'. Verified offline: 7/7 real seller titles matched (incl. the '006'-only one), 5/5 confusables (regular ST10-006 starter, non-Luffy Dallas promo, other Luffy card, sealed, lot) rejected.",
       "queries": [
         "luffy st10-006 one piece day dallas",
@@ -56,6 +59,7 @@
     },
     {
       "name": "Giratina V Alt Art 186/196 (Lost Origin)",
+      "_typical_price": "asking ~$850 raw / ~$3,550 PSA 10 (2026-08)",
       "_note": "Pokemon. Identify by number 186/196 (normalizes to '186196'): a contiguous substring unique to this card — the regular V is 130/196, and every Giratina VSTAR is 131/201/212. Require the bare name 'giratina' (NOT 'giratina v', whose norm 'giratinav' is a prefix of 'giratinavstar') + '186/196'; also exclude 'vstar' belt-and-suspenders. Excludes anchored ('cards lot' not bare 'lot', which would drop 'Holo TCG'->'holotcg'). Verified offline: 12/12 real titles matched, 14/14 confusables (regular V 130, VSTAR 131/201/212, Full Art 185/196, jumbo, master set/ETB/booster box, Japanese) rejected.",
       "queries": [
         "giratina v 186/196 lost origin",
@@ -79,6 +83,7 @@
     },
     {
       "name": "Mew ex 232/091 SIR (Paldean Fates)",
+      "_typical_price": "asking ~$1,050 raw / ~$3,200 PSA 10 (2026-08)",
       "_note": "Pokemon. 232/091 is the Special Illustration Rare 'Bubble Mew'; the only sibling in the set is Mew ex 216/091 (Shiny UR), excluded by number (both 216/091 and 216/91 spellings). match_any also handles the common '232/91' leading-zero form (normalizes to '23291', distinct from '232091'), a bare '#232'+set+SIR path, and a numberless 'bubble mew'+set path. Require 'mew ex' not bare 'mew' (which substring-hits 'mewtwo', also excluded). Verified offline: 13/13 real titles matched, 13/13 confusables (216/091 both forms, Mewtwo, 151-set Mew ex 205/165 & 193/165, bulk/master-set/jumbo/sealed, Japanese 347/190) rejected.",
       "queries": [
         "mew ex 232/091 paldean fates",
@@ -108,6 +113,7 @@
     },
     {
       "name": "Rayquaza V Alt Art 194/203 (Evolving Skies)",
+      "_typical_price": "asking ~$500 raw / ~$1,650 PSA 10 (2026-08)",
       "_note": "Pokemon. Identify by number 194/203 ('194203', unique to the V alt art) — NOT by 'rayquaza v', whose norm 'rayquazav' is a prefix of 'rayquazavmax'. The number cleanly separates it from the (also famous) Rayquaza VMAX Alt Art 218/203, the regular V 110/203, VMAX 111/203, and gold VMAX 217/203, so no 'vmax' exclude is needed (which would wrongly drop 'not VMAX' clarification listings). Verified offline: 9/9 real titles matched, 10/10 confusables (VMAX alt 218, regular V/VMAX, gold VMAX, VSTAR, sealed/jumbo/lot, extended-art case, other-Eeveelution alt art) rejected.",
       "queries": [
         "rayquaza v 194/203 alt art",
@@ -125,6 +131,7 @@
     },
     {
       "name": "Rayquaza 3/17 Holo (POP Series 1)",
+      "_typical_price": "asking ~$58 raw (2026-08)",
       "_note": "Pokemon vintage (2004 POP Series 1 promo, Cosmos Holo Rare). Identify by number 3/17 + the set (pop series / pop 1). 3/17 normalizes to '317', a short substring that collides with e.g. 13/17 ('1317') and 3/170 ('3170'), so pairing with 'pop series' is required for precision. 3/17 IS inherently the holo card (no non-holo print), so we don't require the word 'holo' (which would also match 'non-holo' via substring and hurt recall) — instead we exclude 'non holo' to drop any mislabels. Verified offline: 7/7 real titles matched (incl. terse + PSA 10), 5/5 confusables (non-holo, 13/17, 3/170, Charizard 3/17, proxy) rejected. NOTE: PSA 8/9 (common for vintage) classify as other_graded and won't alert under the house grade set.",
       "queries": [
         "rayquaza 3/17 pop series 1 holo",
@@ -141,6 +148,7 @@
     },
     {
       "name": "Rayquaza EX 123/124 Full Art (Dragons Exalted)",
+      "_typical_price": "asking ~$510 raw (2026-08)",
       "_note": "Pokemon vintage (2012 B&W Dragons Exalted, Rayquaza-EX Full Art Ultra Rare). Identify by number 123/124 ('123124', unique to the full art) — the regular Rayquaza EX is 85/124. match_any Sig 1 = rayquaza + full number; Sig 2 catches the common 'Rayquaza EX 123 Full Art' phrasing (bare 123 without /124) by pairing it with 'full art' + 'dragons exalted' so the bare number can't over-match. Verified offline: 6/6 real titles matched, 6/6 confusables (regular 85/124, Roaring Skies full art, sealed/lot, extended-art case) rejected. NOTE: PSA 8/9 (common for vintage) classify as other_graded and won't alert under the house grade set.",
       "queries": [
         "rayquaza ex 123/124 dragons exalted full art",
@@ -159,6 +167,7 @@
     },
     {
       "name": "Espeon No.196 Crossing the Ruins (JP Neo Discovery) Holo",
+      "_typical_price": "asking ~$140 raw / ~$2,250 PSA 10 (2026-08)",
       "_note": "Pokemon, Japanese. Espeon Holo Rare from the Japanese Neo Discovery set ('Crossing the Ruins' / 遺跡をこえて), printed as a bare running number 'No. 196' (no denominator). Identify by espeon + 196 + a set-name alt-list (crossing the ruins / neo discovery / neo2), plus a numberless fallback [espeon, 'crossing the ruins']. Bare 196 alone is unsafe (196 is Espeon's National Dex number, so it appears in modern Espeon ex/GX/VMAX listings) and is never used without the set name. CRITICAL: Neo DESTINY 'Dark Espeon' is ALSO Japanese No.196 — exclude 'dark'/'destiny' removes it (real Neo Discovery Espeon titles never contain those words); exclude 'umbreon' drops the Espeon 196 + Umbreon 197 pair/lot titles. exclude 'non holo'/'premium file' keeps it to the holo rare, dropping the separate Japanese 'Premium File' promo reprint (also No.196, but a cheap non-holo promo — confirmed on live listings). Verified offline through the full gate chain: 14/14 real holo titles matched (incl. CJK, PSA10, BGS9.5), 24/24 confusables (Dark Espeon keyword-spam/comparisons, English 1/75, modern dex-196 ex/GX/VMAX, Umbreon 197, Premium File promo, non-holo, sealed/jumbo/lot) rejected. Vintage PSA 8/9/CGC -> other_graded, won't alert.",
       "queries": [
         "espeon 196 neo discovery japanese",
@@ -179,6 +188,7 @@
     },
     {
       "name": "Karen's Umbreon 091/141 (Pokemon VS, JP)",
+      "_typical_price": "asking ~$2,800 raw / ~$19,750 PSA 10 (2026-08)",
       "_note": "Pokemon, Japanese. 2001 Pokemon Card VS set, Karen's Umbreon (カリンのブラッキー) #091/141, Holo Rare (JP-only, never English; 1st Edition and Unlimited both exist — not required, for recall). Identify by the FULL number 091/141 ('091141') or the unique name karen+umbreon, NEVER bare '091' (which collides with Paldean Fates Mew 232/091 and Mewtwo 216/091). match_any Sig A = umbreon+091/141; Sig B = karen+umbreon+091 (terse '#091' listings with no '/141' and no 'VS', e.g. the real '#091 PSA 10 Swirl'); Sig C = 091/141+vs (CJK titles that keep only Latin 'VS'+number). Verified offline through the full gate chain: 9/9 real titles matched (incl. CJK, PSA10, BGS9.5, both '#091' short forms), 17/17 confusables (232/091, 216/091, adjacent Karen's Tyranitar 090 / Flareon 089 / Houndoom 092, other Umbreons, VSTAR-'vs' & 091/195 decoys, proxy/metal, lot) rejected. A comparison title restating Umbreon's exact number ('...not the Umbreon 091/141') is an inherent substring-match edge. Vintage PSA 7/9/CGC -> other_graded, won't alert.",
       "queries": [
         "karens umbreon 091/141",
@@ -199,6 +209,7 @@
     },
     {
       "name": "Growlithe #058 Vending Series 3 (Japanese, 1998)",
+      "_typical_price": "asking ~$75 raw / ~$1,270 PSA 10 (2026-08)",
       "_note": "Pokemon, Japanese vintage (1998 Vending Machine / 自動販売機 promo, Series 3 'Green', glossy). Identify by growlithe + vending + a Series-3-or-number confirm ['series 3','series iii','58']. The card number #58 IS Growlithe's National Dex number (so it's redundant with the name and only ONE Growlithe exists in the Vending line — Series 3), which is why identity keys on the SET ('vending' + 'series 3'), not the number. 'vending' excludes every non-Vending Growlithe (Base Set 28/102, Evolutions 58/108, etc.); the series/number clause excludes a 'Base Set Growlithe, also sell vending cards' cross-promo (no series 3/58). Catches the terse TCGplayer form 'Growlithe Vending Machine Cards Series 3 (Green) Regular' (no number) via 'series 3', and a mislabeled '055' listing (dex 055 is Golduck -> seller typo, same card) via 'series 3'. Rejects other Vending Series 3 Pokemon (Vulpix etc.), lots, sealed. Verified offline (7/7 real forms matched, confusables rejected) and live-scraped (91 real Growlithe matches, 0 non-Growlithe FP, 0 'arcanine' name-drops). Documented edge: an Arcanine listing that writes 'evolves from Growlithe #58' would match, but none appear in live data. Vintage PSA 8/9 & CGC 9 slabs bucket other_graded and won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "growlithe vending series 3 japanese",
@@ -215,6 +226,7 @@
     },
     {
       "name": "Squirtle 007/018 McDonald's Promo (Japanese, 2002 e-Series)",
+      "_typical_price": "asking ~$2,100 raw / ~$11,150 PSA 10 (2026-08)",
       "_note": "Pokemon, Japanese (2002 McDonald's 'Original Minimum Pack' e-Series promo; 18-card set, Squirtle = 007/018, Holo with the sought-after 'swirl'). Identity keys on squirtle + the FULL number '007/018' (norm '007018'): '007' alone is Squirtle's National Dex number and collides with every modern Squirtle (007/165 in 151, Squirtle ex 007, etc.), but the complete 007/018 is unique to this 18-card McDonald's set, and no English/European 007/018 print exists (McDonald's Japan exclusive) so the number also gates language. Rejects modern Squirtle (007/165 -> '007165', lacks '007018'), Base Set 63/102, the sibling McDonald's cards (Charmander 004/018, Wartortle 008/018, Blastoise 009/018), the 2021 English McDonald's 25th-anniversary set, complete-set lots, a Squirtle+Charmander 2-card lot (is_lot), and hand-painted/custom-art proxies (global DEFAULT_EXCLUDE, extended here). Verified offline (FN=0 real, FP=0) and live-scraped (53 real 007/018 matched, 0 FP; the 2-card lot and every non-house grade PSA9/8/6/5, CGC3, TAG/BGS/ARS correctly rejected). Vintage PSA 8/9 & CGC-9 slabs bucket other_graded and won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "squirtle 007/018 mcdonald japanese",
@@ -231,6 +243,7 @@
     },
     {
       "name": "One Piece 3rd Anniversary Set (English, sealed)",
+      "_typical_price": "asking ~$1,030 sealed set (2026-08)",
       "_note": "SEALED PRODUCT (not a single card) — the official 2025 One Piece Card Game English Version 3rd Anniversary Set. First sealed-product watch: uses grades ['ungraded'] (boxes aren't graded) and 'sealed_product': true, which rejects any listing carrying a single-card number (OP13-120, ST01-012, ...) since those are singles pulled from the set, not the box. The is_lot / is_bulk_or_sealed gates stay ON (the plain 'Set' passes them, while lots/bundles/playsets are rejected). require = one piece + 3rd/third anniv + 'set' (excludes 1st/2nd anniversary and singles that say 'card' not 'set'). exclude 'campaign'/'treasure' drops the separate '3rd Anniversary Treasure Campaign Promo Collection' (~$26-80); 'playset' drops multi-single playsets. min_price 500 cuts the cheap no-number singles/accessories (alt-art/leader singles $100-420, deck/storage box, guide book) — the real sealed set is ~$620-2000. language 'english' drops the Japanese version. Live-verified: 161 scraped -> 39 kept, ALL genuine sealed English sets (incl. presale/in-hand/Bandai and titles with ship dates like '8/10'), 0 FP; singles (Sabo OP13-120, Ace OP13-119, Luffy ST01-012 Winner Promo) and the campaign promo collection all rejected. Note: the card-number reject uses the dash-code form only — the Pokemon '232/091' slash form is skipped because it false-matches shipping dates.",
       "queries": [
         "one piece card game english 3rd anniversary set",
@@ -253,6 +266,7 @@
     },
     {
       "name": "Espeon 1/75 Neo Discovery Holo Rare (English)",
+      "_typical_price": "asking ~$285 raw (2026-08)",
       "_note": "Pokemon, English vintage (2001 Neo Discovery, WOTC, Holo Rare) — the ENGLISH counterpart of the Japanese Neo Discovery Espeon No.196 (its own separate watch); this one is English #1/75. Identify by espeon + neo discovery + '1/75' (norm '175'). The 1/75 number is SHARED by WOTC's German/French/Italian prints, so those language markers are excluded to keep it English (terse English listings carry no language word -> 'unknown' -> kept; language 'english' additionally drops JP/CJK). exclude 'dark'/'destiny' guards vs Neo DESTINY 'Dark Espeon' (different set/number). '175' can in theory collide with a '$175' price, but live data shows real JP No.196 listings never carry '1/75' (0 '196' leak). Verified offline (8/8 English matched; JP 196, Dark Espeon, Umbreon 5/75, modern Espeon ex, Neo Genesis 1/111, German/French/Italian, and a two-number lot all rejected) and live-scraped (89 English matches, 0 '196' leak). Vintage PSA 8/9 & CGC 8/9 bucket other_graded and won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "espeon 1/75 neo discovery holo rare",
@@ -270,6 +284,7 @@
     },
     {
       "name": "Psyduck #20 WOTC Black Star Promo (English, 2000)",
+      "_typical_price": "asking ~$90 raw (2026-08)",
       "_note": "Pokemon, English vintage (WOTC Black Star Promo #20 / 20/53, Pokemon League release 2000, non-holo, illus. Kagemaru Himeno). Bare '20' is UNSAFE: years 2000/2019/2025 all normalize to CONTAIN '20', and modern Psyduck promos (2025 Mega Evolution #007, 2019 Detective Pikachu SM199) ALSO say 'Black Star Promo', so they'd match psyduck+blackstar+20 via the year. Dual defense: the clean self-sufficient '20/53'->'2053' signature, plus match_any covering the other real seller forms (blackstar+20; WOTC-Promo 'wotcp'+20; Pokemon-League+20 for terse 'BS #20' titles with no black-star/wotc token; TCGplayer 'Promo Regular'+20) guarded by a modern-marker exclude wall (mega evolution/mep/enme/007/sm199/detective/scarlet/226-217/039-217/prize pack/van gogh/cosmos). Foreign WOTC #20 prints keep the English name 'Psyduck' but title in German/French ('Pokemon Liga/Ligue') or name the language -> excluded (german/french/italian/spanish/portuguese/dutch/liga/ligue), the Espeon 1/75 precedent. Designed + adversarially verified by a 3-agent workflow (~300 live listings) then independently re-scraped (159 listings: 129 real #20 matched, 9 correctly excluded [modern MEP/SM199/Portuguese], 0 real #20 wrongly killed); FN=0 FP=0 on a 41-TRUE/37-FALSE battery. Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only). Documented edges: (a) a terse modern listing with only a bare year and no set marker could leak; (b) a real #20 slab whose CERT number happens to contain '007' would be missed — unobserved in live data (mid-value card, cert# rarely in title).",
       "queries": [
         "psyduck wotc black star promo 20",
@@ -293,6 +308,7 @@
     },
     {
       "name": "Lugia 9/111 Neo Genesis Holo Rare (English)",
+      "_typical_price": "asking ~$650 raw (2026-08)",
       "_note": "Pokemon, English vintage (WOTC Neo Genesis, 2000, Holo Rare) — the set's chase card. Identify by lugia + neo genesis, NOT the number: '9/111' normalizes to '9111', which is a SUBSTRING of every 'X9/111' card (19/111, 79/111, ...), so requiring it both risks those collisions AND drops terse listings — and it's redundant since Lugia is the only Lugia in the set. 'lugia' is an uncommon name, so lugia+neo genesis is precise. Foreign WOTC prints share 9/111 and keep the English name 'Lugia', so exclude german/french/italian/spanish/portuguese/dutch + liga/ligue (the Espeon 1/75 / Psyduck precedent; verified 'liga'/'ligue' are NOT substrings of 'lugia'). Verified offline (6/6 real forms incl. terse no-number matched; Typhlosion/Feraligatr, different-set Lugia 68/64 & 138/195, German/French, lot, sealed, Japanese all rejected) and live-scraped (156 listings -> 130 real matches, 0 non-Lugia name-drop FPs, 0 other-number). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only). Documented edge: a non-Lugia Neo Genesis listing that name-drops 'Lugia' would match — unobserved in live data.",
       "queries": [
         "lugia 9/111 neo genesis holo rare",
@@ -310,6 +326,7 @@
     },
     {
       "name": "Lugia ex 031/PLAY — 4th Season Players Club Promo (Japanese, 2006)",
+      "_typical_price": "asking ~$1,880 raw (2026-08)",
       "_note": "Pokemon, Japanese (2006 PCG-P 'PLAY Promos' — the 4th-season Pokemon Card Game 'Players' club subscription-kit gift, ~Mar 2006). This IS the 'Lugia ex' card (the lowercase-ex game mechanic), number 031/PLAY — so 'EX-HOLO' in seller titles means the ex card + holofoil, NOT a condition, and the matcher deliberately does NOT key on 'ex' (which collides with condition-grade EX, the set 'EX Unseen Forces', and Lugia-EX/GX/V). Sig A ['lugia', 031play|31play] rides the official set code 031/PLAY (norm '031play'; also the leading-zero-dropped '31/PLAY'). Sig B ['lugia', players club|players kit|4th season subscription] catches no-number and PSA-slab-label forms via promo-unique phrases. Sig C ['lugia','031', 4th season|pcgp] catches terse 'PCG-P 031' / '4th Season Play ... 031' forms. Bare '031' is NEVER used alone (Lugia's set number, but it collides with stray price/cert digits). exclude = competing Lugia set-numbers whose stray '031' (in a price/cert) could otherwise leak them in: Unseen Forces 105/115, Golden Sky Silvery Ocean 090/106, Prismatic 082/131, Silver Tempest 186/195, Plasma Gale 074/070, WC 047/L-P, S&M 237/SM-P, and the Pikachu Victory-Medal 031/L-P. Designed + adversarially verified via a 7-agent workflow, then re-verified against live code: offline battery FN=0/FP=0 across 13 target forms + 20 confusables (incl. a contrived 'Players Club $10.31' Unseen Forces and a Silver Tempest alt-art via cert '031'), and a live scrape (193 distinct -> 23 accepted, all genuine 031/PLAY, 0 FP). Heavy graded inventory is PSA 9 / PSA 8 / ARS 10 -> other_graded, dropped BY DESIGN (raw + PSA10/BGS10/BGS9.5/CGC10 only). Documented edge: a genuine 2-card 'Lugia 031/PLAY + Ho-oh 030' Players-set listing is accepted (contains the target; is_lot can't flag it since '030' carries no denominator).",
       "queries": [
         "lugia ex 031/play 4th season players club japanese",
@@ -331,6 +348,7 @@
     },
     {
       "name": "Oshawott 105/086 — SV White Flare Illustration Rare (English, 2025)",
+      "_typical_price": "asking ~$95 raw (2026-08)",
       "_note": "Pokemon, English (2025 Scarlet & Violet 'White Flare', SV11W). Oshawott Illustration Rare, secret-numbered 105/086 (105 > the 86-card base = an IR beyond the set size). Identify by oshawott + the FULL number '105/086' (norm '105086'): bare '105' is hugely collision-prone, but 105/086 is unique to this card — verified live that no Black Bolt (the paired sister set) or other-set Oshawott carries 105/086 (0 of 140 scraped mentioned Black Bolt; Oshawott is a White Flare card), so NO set-name token is required and terse 'Oshawott 105/086' / 'Oshawott [WHT - 105/086]' listings still match. Rejects the base Oshawott (lower number), sibling IRs (Dewott 106/086), same-number other-Pokemon (Samurott 105/086), other-set Oshawott (Journey Together 105/159, Paldea 105/091), and multi-card lots (is_lot on 105/086 + 106/086). English SV sets share collector numbers across EU languages, so language 'english' + german/french/etc. excludes scope to the English print (the Espeon/Lugia precedent). Verified offline (FN=0, FP=0 — the one battery 'FP' was a non-existent Black Bolt Oshawott) and live-scraped (140 distinct -> 69 accepted, all genuine White Flare 105/086, 0 FP, terse/WHT-abbreviated forms caught). PSA 9 / CGC 9 slabs -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "oshawott 105/086 white flare illustration rare",
@@ -348,6 +366,7 @@
     },
     {
       "name": "Squirtle 132/165 Expedition Base Set (English, 2002)",
+      "_typical_price": "asking ~$45 raw (2026-08)",
       "_note": "Pokemon, English (2002 WOTC Expedition Base Set — the first e-Card/e-Reader set). Squirtle 132/165, Common. Sig A ['squirtle','132/165'] is the primary anchor (norm '132165', unique to this card). Sig B ['squirtle','expedition','132'] rescues the terse '#132'-only PSA-slab form (where /165 is dropped), gated by 'expedition' + 'squirtle' so bare '132' can't leak. Rejects the common '131/165' seller typo (we key on the correct 132), other /165 cards (Bulbasaur 94/165), the McDonald's Squirtle 007/018, the Japanese Squirtle Deck, and multi-card /165 lots (is_lot). English WOTC prints share 132/165 across EU languages, so language 'english' + exonym excludes (German/Deutsch, French/Francais, Italian/Italiano, Spanish/Espanol, Dutch/Nederlands, Portuguese/Portugues, Liga/Ligue) scope to English. Verified offline FN=0/FP=0 (incl. Deutsch/Espanol rejects) and live-scraped. KNOWN residual: a listing whose ONLY foreign signal is a flag emoji (stripped by _norm) isn't catchable — rare. Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "squirtle 132/165 expedition base set",
@@ -365,6 +384,7 @@
     },
     {
       "name": "Squirtle No.007 — 1999 Japanese Squirtle Deck / Intro Pack (Japanese)",
+      "_typical_price": "asking ~$130 raw / ~$1,775 PSA 10 (2026-08)",
       "_note": "Pokemon, Japanese (1999 Intro Pack 'Squirtle Deck' / Zenigame deck — the Squirtle half; often titled 'VHS Intro Pack', it shipped with an instructional VHS). The deck holds FOUR different Squirtle cards (deck positions #16/#18/#37/#40, all printed 'No.007', different reprint artwork) — this watch tracks ALL of them (per the user's all-variants choice). Identity: 'squirtle' + set gate ['squirtle deck','intro pack','intro deck','vhs'] + dex ['007','no007']. Why NOT the deck position: 'squirtle' is the SET name (on every card in the deck), and bare positions 16/18/37/40 collide with stray digits (a live 'Fire Energy ... POP 18' leaked in) — so the reliable anchor is 'No.007' (printed on all 4 Squirtle, present in ~every real title), not the position. exclude ['wartortle','blastoise','venusaur'] drops same-deck siblings and is MANDATORY for cross-watch (norm 'squirtledeck' contains 'squirtle', so a Wartortle listing would otherwise satisfy the 'squirtle' clause). Mutually exclusive with the McDonald's 007/018 watch (Intro-Pack 'No.007' norms to '007'/'00718', never the contiguous '007018') and Expedition 132/165. Designed via 7-agent workflow (all-variants scope), verified offline FN=0/FP=0 (Fire-Energy leak closed) and live-scraped (180 distinct -> 28 accepted, all genuine deck Squirtle #16/#18/#40, 0 sibling leak, 0 recall miss). Vintage PSA 8/9 -> other_graded (raw + top grades only). Edge: a rare listing printing only a position number and NOT 'No.007' would be missed.",
       "queries": [
         "squirtle no.007 intro pack squirtle deck japanese",
@@ -385,6 +405,7 @@
     },
     {
       "name": "Wartortle No.008 — 1999 Japanese Squirtle Deck / Intro Pack (Japanese)",
+      "_typical_price": "asking ~$90 raw / ~$1,330 PSA 10 (2026-08)",
       "_note": "Pokemon, Japanese (1999 Intro Pack 'Squirtle Deck' / VHS promo — the Squirtle half). Two Wartortle variants exist (deck positions #3 and #10, both 'No.008') — this watch tracks BOTH (per the user's all-variants choice). Identity: 'wartortle' (NOT the set name, so it appears only on the Wartortle card) + set gate ['squirtle deck','intro pack','intro deck','vhs']. No number needed — wartortle + the deck gate is unique. exclude ['007'] drops the 2-card 'Squirtle 007 + Wartortle 008' combo listings so they fire NEITHER this nor the Deck-Squirtle watch. Separates from the Base Set / Expansion Pack / Team Rocket Wartortle (also No.008, but they never say 'Squirtle Deck'/'Intro Pack'/'VHS'). Verified offline FN=0/FP=0 and live-scraped (147 distinct -> 38 accepted, all genuine deck Wartortle #3/#10; the Squirtle+Wartortle combo correctly dropped). Vintage PSA 8/9 -> other_graded (raw + top grades only). Documented residual: a listing abbreviating 'Squirtle Deck' to bare 'Squirtle' (e.g. 'Squirtle #3 Wartortle') fails the set gate (~1/24 of titles; adding bare 'squirtle' would over-match every Squirtle-mentioning Wartortle).",
       "queries": [
         "wartortle no.008 squirtle deck intro pack japanese",
@@ -402,6 +423,7 @@
     },
     {
       "name": "Light Arcanine No.059 — Neo Destiny (Japanese, 2001)",
+      "_typical_price": "asking ~$175 raw / ~$2,550 PSA 10 (2026-08)",
       "_note": "Pokemon, Japanese (2001 Neo Destiny / 'Darkness, and to Light...' / Neo 4, Holo Rare, illus. Atsuko Nishida). Light Arcanine, No.059 (059 = Arcanine's National Dex number, printed on the card). Identity: the contiguous 'light arcanine' + a JP number/subtitle token (['059','no.59','no. 59','#59','darkness and to light','neo 4', ...]). 'light arcanine' is required as ONE token (norm 'lightarcanine'), NOT bare 'light' — bare 'light' collides with 'Lightly Played'/'Light Play' condition notes. The number clause is deliberately broad: JP sellers write No.059 / No.59 / #59 / bare 59, and often ONLY the JP subtitle 'Darkness, and to Light...' or 'Neo 4' (so a plain-'059' require systematically dropped #59-style and numberless JP slabs). There is ALSO an English Light Arcanine (Neo Destiny 12/105); the JP tokens select the Japanese print (English is 12/105 — neither '059'/'59' nor the JP subtitle), and exclude '12/105' backstops any English listing carrying a stray '59'. Rejects Dark Arcanine (Team Rocket, also dex 059), other Light Pokemon (Light Dragonite), base Arcanine, and lightly-played non-Light Arcanine. Verified offline FN=0/FP=0 and live-scraped (149 distinct -> 60 accepted, all genuine Japanese No.059, 0 English 12/105 leak). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "light arcanine 059 neo destiny japanese",
@@ -419,6 +441,7 @@
     },
     {
       "name": "Houndoom H11/H32 — Aquapolis Holo Rare (English, 2003)",
+      "_typical_price": "asking ~$640 raw (PSA 10 scarce, wide asks) (2026-08)",
       "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare, illus. Hajime Kusajima). Houndoom, holo #H11/H32. Identity: 'houndoom' + 'aquapolis' + 'h11'. The set name 'aquapolis' is MANDATORY: all three e-Card sets (Expedition/Aquapolis/Skyridge) use H1-H32 holo numbering, and Houndoom is H11/H32 in BOTH Aquapolis AND Skyridge — verified live that many genuine 'Houndoom Skyridge H11/H32' listings exist, so 'houndoom'+'h11' alone would false-match the Skyridge card. require 'h11' catches both '#H11' and 'H11/H32' (norm 'h11h32' contains 'h11'). exclude 'sticker' drops novelty 'Credit Card Sticker' items. Rejects the Skyridge Houndoom H11/H32, the terse no-set 'Houndoom H11/H32 Holo' (ambiguous — could be Skyridge, so correctly not fired), Houndour H10/H32, the non-holo Aquapolis Houndoom (43/147), and lots. Aquapolis also has DE/FR/IT/ES/PT prints, but the monitor's language layer detects EU-language markers and drops them, so language 'english' scopes to the English card while keeping terse / German-seller titles read as 'unknown'. Verified offline FN=0/FP=0 and live-scraped (159 distinct -> 20 accepted, all genuine Aquapolis H11/H32, 0 Skyridge leak, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "houndoom aquapolis h11 holo",
@@ -436,6 +459,7 @@
     },
     {
       "name": "Slowking H22/H32 — Aquapolis Holo Rare (English, 2003)",
+      "_typical_price": "asking ~$305 raw (2026-08)",
       "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare). Slowking, holo #H22/H32. Identity: 'slowking' + 'aquapolis' + 'h22'. Set name 'aquapolis' is required — all three e-Card sets (Expedition/Aquapolis/Skyridge) share H1-H32 holo numbering, so the set name prevents cross-set collisions (per the Houndoom-in-both-Aquapolis-and-Skyridge precedent). require 'h22' catches '#H22' and 'H22/H32' (norm 'h22h32'). exclude 'sticker' drops novelty items. Rejects Skyridge / terse-no-set Slowking, the non-holo Aquapolis Slowking (55/147), and lots. Aquapolis also has DE/FR/IT/ES/PT prints, but the language layer's EU-marker detection drops them, so language 'english' (keeps German-seller titles read as 'unknown') scopes to the English card. Verified offline FN=0/FP=0 and live-scraped (105 distinct -> 17 accepted, all genuine Aquapolis H22/H32, 0 Skyridge leak, 0 foreign, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "slowking aquapolis h22 holo",
@@ -453,6 +477,7 @@
     },
     {
       "name": "Azumarill H4/H32 — Aquapolis Holo Rare (English, 2003)",
+      "_typical_price": "asking ~$155 raw (2026-08)",
       "_note": "Pokemon, English (2003 WOTC Aquapolis, e-Card/e-Reader series 2, Holo Rare). Azumarill, holo #H4/H32. Identity: 'azumarill' + 'aquapolis' + 'h4'. Set name 'aquapolis' is required (the three e-Card sets share H1-H32 holo numbering — Houndoom precedent). require 'h4' catches '#H4' and 'H4/H32' (norm 'h4h32'); 'h4' matches only 'H4' (h followed by 4), never H14/H24/etc. exclude 'sticker' drops novelty items. Rejects Skyridge / terse-no-set Azumarill, Marill (require 'azumarill'), the non-holo Aquapolis Azumarill, and lots. Aquapolis also has DE/FR/IT/ES/PT prints, but the language layer's EU-marker detection drops them, so language 'english' scopes to the English card. Verified offline FN=0/FP=0 and live-scraped (105 distinct -> 18 accepted, all genuine Aquapolis H4/H32, 0 Skyridge leak, 0 foreign, 0 recall miss). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "azumarill aquapolis h4 holo",
@@ -470,6 +495,7 @@
     },
     {
       "name": "Shining Gyarados 65/64 — Neo Revelation Secret Rare (English, 2001)",
+      "_typical_price": "asking ~$1,115 raw (2026-08)",
       "_note": "Pokemon, English (2001 WOTC Neo Revelation, Secret Rare Holo, a 'Shining' Pokemon). Shining Gyarados 65/64. require 'shining gyarados' (distinctive) + ('65/64' OR 'neo revelation') to scope to the English print (the other Shining Gyarados is the Japanese Neo-Destiny-era one, which says neither). Rejects the regular Gyarados (6/64), Shining Magikarp, Gyarados ex, and — via language 'english' + EU-language excludes (Neo Revelation had German/French/etc. prints sharing 65/64) — foreign prints. Verified offline FN=0/FP=0 and live-scraped (67 distinct -> 23 accepted, all genuine 65/64, 0 foreign leak). Note: a 2-card 'Shining Gyarados + Shining Magikarp' listing that omits Magikarp's number is accepted (contains the target). Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "shining gyarados 65/64 neo revelation holo",
@@ -487,6 +513,7 @@
     },
     {
       "name": "Umbreon H29/H32 — Aquapolis Holo Rare (English, 2003)",
+      "_typical_price": "asking ~$1,100 raw (2026-08)",
       "_note": "Pokemon, English (2003 WOTC Aquapolis e-Card, Holo Rare, illus. Mitsuhiro Arita). Umbreon holo #H29/H32. Identity: 'umbreon' + 'aquapolis' + 'h29'. Set name 'aquapolis' required — the three e-Card sets (Expedition/Aquapolis/Skyridge) share H1-H32 holo numbering (sellers even tag 'No Skyridge' due to the confusion); Houndoom precedent. require 'h29' catches '#H29' and 'H29/H32'. exclude 'sticker'; the global DEFAULT_EXCLUDE drops the 'Proxy' fan-made copies seen on Etsy/eBay. Distinct from the existing Karen's Umbreon 091/141 (VS) watch (different number/set — cross-checked, 0 double-fire). Aquapolis also has DE/FR/IT/ES/PT prints, but the language layer's EU-marker detection drops them, so language 'english' scopes to the English card. Verified offline FN=0/FP=0 and live-scraped (107 distinct -> 29 accepted, all genuine Aquapolis H29/H32, 0 Skyridge leak). Vintage PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "umbreon aquapolis h29 holo",
@@ -504,6 +531,7 @@
     },
     {
       "name": "Charizard 100/97 — EX Dragon Secret Rare (English, 2003)",
+      "_typical_price": "asking ~$650 raw (2026-08)",
       "_note": "Pokemon, English (2003 EX Dragon, Secret Rare Holo, illus. Mitsuhiro Arita). Charizard 100/97 (100 > the 97-card set = secret rare). require 'charizard' + the full '100/97' (norm '10097', unique to this card) — bare 'charizard'/'100' are hugely collision-prone. Rejects Base Set Charizard (4/102), Charizard ex 100/100 (Crystal Guardians), Charmander, and — via language 'english' + EU-language excludes (EX Dragon had German/French/etc. prints sharing 100/97) — foreign prints. Verified offline FN=0/FP=0 and live-scraped (90 distinct -> 19 accepted, all genuine 100/97 EX Dragon incl. reverse-holo variants, 0 foreign leak). Vintage PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "charizard 100/97 ex dragon holo secret rare",
@@ -521,6 +549,7 @@
     },
     {
       "name": "Dark Dragonair 38/110 Reverse Holo — Legendary Collection (English, 2002)",
+      "_typical_price": "asking ~$325 raw (2026-08)",
       "_note": "Pokemon, English (2002 Legendary Collection, the REVERSE-HOLO variant of Dark Dragonair 38/110). Identity: 'dark dragonair' + '38/110' + 'reverse'. The 'reverse' token is intentional — Legendary Collection printed both a regular and a reverse-holo (mirror-foil) version of each card, and this watch tracks the reverse per request; regular/non-specified listings are deliberately dropped (the regular is a different, cheaper card). 'reverse' catches 'Reverse Holo'/'Reverse Foil'. Rejects the regular Dark Dragonair, Dark Dragonite 22/110, Jungle Dragonair, and (language 'english' + EU excludes) foreign prints. Verified offline FN=0/FP=0 and live-scraped (100 distinct -> 15 accepted, all genuine reverse-holo 38/110; 34 regular/ambiguous listings correctly excluded). Note: a genuine reverse-holo listing that omits the word 'reverse' would be missed (precision-first). PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "dark dragonair 38/110 legendary collection reverse holo",
@@ -538,6 +567,7 @@
     },
     {
       "name": "Giratina 10/127 — Platinum Holo Rare (English, 2009)",
+      "_typical_price": "asking ~$55 raw (2026-08)",
       "_note": "Pokemon, English (2009 Platinum base set, Holo Rare, illus. Hajime Kusajima). Giratina 10/127. require 'giratina' + the full '10/127' (norm '10127', unique to Platinum) — bare 'giratina'/'10' collide, notably with the existing Giratina V 186/196 (Lost Origin) watch (cross-checked, 0 double-fire). Catches both the holo and reverse-holo 10/127 (same card number). Rejects the Giratina V 186/196, the Origin Forme, and (language 'english' + EU excludes; Platinum had foreign prints sharing 10/127) foreign prints. Verified offline FN=0/FP=0 and live-scraped (79 distinct -> 31 accepted, all genuine Platinum 10/127 incl. 'Lv.63'/reverse forms, 0 foreign leak; listings that omit the word 'platinum' still match since 10/127 is Platinum-unique). PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "giratina 10/127 platinum holo rare",
@@ -555,6 +585,7 @@
     },
     {
       "name": "Morty's Ninetales 020/141 — Pokemon VS (Japanese, 2001)",
+      "_typical_price": "asking ~$90 raw (2026-08)",
       "_note": "Pokemon, Japanese (2001 Pokemon Card VS, the gym-leader-themed set, #020/141, illus. Naoyo Kimura). Identity: 'morty' + 'ninetales' — distinctive and unique (the VS set is the only 'Morty's Ninetales'; Morty is a Johto gym leader absent from the English Gym Heroes/Challenge sets, which are Kanto leaders). No number needed. Rejects base-set Ninetales, Blaine's Ninetales (Gym Challenge), Morty's Gengar, and the sibling Karen's Umbreon (VS) — cross-checked 0 double-fire. Verified offline FN=0/FP=0 and live-scraped (118 distinct -> 21 accepted, all genuine Morty's Ninetales 020/141). Vintage PSA 8/9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "morty's ninetales vs series japanese",
@@ -571,6 +602,7 @@
     },
     {
       "name": "Articuno Holo #144 — 1998 Japanese Red/Green Quick Starter Gift Set",
+      "_typical_price": "asking ~$375 raw / ~$6,800 PSA 10 (2026-08)",
       "_note": "Pokemon, Japanese (1998 Red/Green 'Quick Starter Gift Set', holo Articuno, dex #144). Identity: 'articuno' + a set gate ['red green','red/green','gift set','quick starter']. Bare '144' is only Articuno's National Dex number (on many Articuno cards), so identity rides on 'articuno' + the gift-set name, NOT the number. Rejects the Fossil Articuno (17/62), plain Base Set Articuno, the 1999 Meiji promo Articuno, and other gift-set holos (Zapdos/Moltres lack 'articuno'). Verified offline FN=0/FP=0 and live-scraped (141 distinct -> 13 accepted, all genuine Red/Green Gift Set Articuno #144; the forms 'Red/Green Gift Set' / 'Quick Starter Gift Set' / 'Red Green Quick Starter' all caught). Vintage PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "articuno 1998 japanese red green gift set holo",

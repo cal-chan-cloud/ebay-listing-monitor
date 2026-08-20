@@ -324,7 +324,11 @@ def passes_language(title: str, want: str) -> bool:
 # "extended art"/"extended artwork" cases are acrylic display-case MERCH printed with
 # the card's art, not the card itself — drop them ("extendedart" is collision-free).
 DEFAULT_EXCLUDE = ["proxy", "orica", "oricard", "custommade", "handmade", "metalcard",
-                   "sealedbooster", "extended art", "custom art", "hand painted", "fan art"]
+                   "sealedbooster", "extended art", "custom art", "hand painted", "fan art",
+                   # display/merch, not the single card: acrylic "card case" / "display case"
+                   # products printed with the card art, and playmats. ("card in case" is NOT
+                   # matched — the merch says "card case"/"case display" as adjacent tokens.)
+                   "card case", "case display", "display case", "playmat"]
 
 
 def _norm(s: str) -> str:
