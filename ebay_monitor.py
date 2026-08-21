@@ -170,6 +170,24 @@ def prime_session(domain: str, session=None):
     except Exception as e:
         print(f"session prime warning: {e}", file=sys.stderr)
 
+
+# eBay rate-blocks on request BURSTS, not just average rate: in testing a sustained
+# SEQUENTIAL ~27 req/min held fine, but the monitor's concurrent full-scan bursts
+# (dozens of requests in ~1 min) tripped the block even at a much lower average.
+# So enforce a global minimum spacing between eBay requests -> every scan becomes a
+# smooth stream instead of a burst. Overridable via config "min_request_interval_seconds".
+_MIN_REQUEST_INTERVAL = 2.0
+_LAST_REQUEST_AT = [0.0]
+_THROTTLE_LOCK = threading.Lock()
+
+
+def _throttle_request():
+    with _THROTTLE_LOCK:
+        wait = _MIN_REQUEST_INTERVAL - (time.time() - _LAST_REQUEST_AT[0])
+        if wait > 0:
+            time.sleep(wait)
+        _LAST_REQUEST_AT[0] = time.time()
+
 # ---------------------------------------------------------------------------
 # Grade classification
 # ---------------------------------------------------------------------------
@@ -659,6 +677,7 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4, sold: bool = 
     # page (which the session already primed), not a cold direct hit -> less bot-like.
     ref = {"Referer": f"https://{domain}/"}
     for attempt in range(1, max_attempts + 1):
+        _throttle_request()  # global spacing between eBay requests (anti-burst)
         resp = session.get(url, headers=ref, timeout=25)
         if resp.status_code == 403 or _looks_blocked(resp.text):
             if attempt < max_attempts:
@@ -1365,6 +1384,8 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
     # stays out of the public repo); fall back to config.json for local runs.
     webhook = os.environ.get("DISCORD_WEBHOOK_URL") or cfg.get("discord_webhook_url", "")
     domain = cfg.get("ebay_domain", "www.ebay.com")
+    global _MIN_REQUEST_INTERVAL
+    _MIN_REQUEST_INTERVAL = float(cfg.get("min_request_interval_seconds", 2.0))
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # A price drop alerts when the price falls at least this % AND this many $
     # below the last-recorded price (per-watch overridable).
