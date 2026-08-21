@@ -1,0 +1,25 @@
+name: eBay Block Diagnostic
+
+# Temporary: determine whether eBay blocks the GitHub Actions IP range outright,
+# or only throttles the monitor for scanning too often. Manual trigger only.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Gentle low-rate eBay fetch test
+        run: python diag_block.py
