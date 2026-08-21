@@ -759,7 +759,7 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4, sold: bool = 
     return listings
 
 
-def fetch_all(domain: str, watch: dict, delay: float = 0.3, sold: bool = False):
+def fetch_all(domain: str, watch: dict, delay: float = 0.3, sold: bool = False, max_queries=None):
     """Fetch a watch across all its search phrasings and merge+dedupe by item id.
 
     A watch may set "queries" (a list) to search several wordings; falls back to
@@ -768,6 +768,8 @@ def fetch_all(domain: str, watch: dict, delay: float = 0.3, sold: bool = False):
     sold=True fetches completed sales instead of active listings.
     """
     queries = watch.get("queries") or ([watch["query"]] if watch.get("query") else [])
+    if max_queries:
+        queries = queries[:max_queries]  # cap request volume per scan (rate-limit safety)
     worldwide = bool(watch.get("all_regions"))
     merged = {}
     for i, q in enumerate(queries):
@@ -781,7 +783,7 @@ def fetch_all(domain: str, watch: dict, delay: float = 0.3, sold: bool = False):
     return list(merged.values())
 
 
-def fetch_all_watches(domain: str, watches, workers: int = 3):
+def fetch_all_watches(domain: str, watches, workers: int = 3, max_queries=None):
     """Fetch every watch's active listings CONCURRENTLY -> {index: listings}.
 
     Network fetch is the scan's bottleneck (dozens of sequential HTTP round-trips);
@@ -800,7 +802,7 @@ def fetch_all_watches(domain: str, watches, workers: int = 3):
         i, watch = item
         time.sleep(random.uniform(0, 0.8))  # stagger workers so N searches don't burst at once
         try:
-            return i, fetch_all(domain, watch)
+            return i, fetch_all(domain, watch, max_queries=max_queries)
         except Exception as e:
             print(f"[{watch.get('name', '?')}] fetch error: {e}", file=sys.stderr)
             return i, []
@@ -1417,7 +1419,8 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
     # Fetch every watch's active listings up front, in parallel (the scan's slow part
     # is HTTP, not compute). Processing below stays sequential in this thread.
     watches = cfg.get("watches", [])
-    fetched = fetch_all_watches(domain, watches, workers=int(cfg.get("scan_workers", 3)))
+    fetched = fetch_all_watches(domain, watches, workers=int(cfg.get("scan_workers", 3)),
+                                max_queries=cfg.get("max_queries_per_watch"))
 
     for wi, watch in enumerate(watches):
         name = watch["name"]

@@ -1,7 +1,9 @@
 {
   "discord_webhook_url": "",
-  "poll_interval_seconds": 180,
-  "priority_interval_seconds": 30,
+  "poll_interval_seconds": 600,
+  "priority_interval_seconds": 240,
+  "scan_workers": 2,
+  "max_queries_per_watch": 2,
   "ebay_domain": "www.ebay.com",
   "price_drop_pct": 5,
   "price_drop_min": 1,
