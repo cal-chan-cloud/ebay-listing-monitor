@@ -616,6 +616,23 @@
       "language": "any",
       "min_price": null,
       "max_price": null
+    },
+    {
+      "name": "Ahri Inquisitive SP3/006 — Crystal Rose Alt Art (Riftbound Vendetta)",
+      "_typical_price": "asking ~$180 raw (2026-08, new release; little graded pop yet)",
+      "_note": "Riftbound (League of Legends TCG by Riot) — the monitor's first non-Pokemon/One-Piece game. Ahri, Inquisitive — Crystal Rose ALT ART from set Vendetta (VEN), number SP3/006 (one of 6 'SP' Wild Rift Crystal Rose crossover alt arts, SP1-SP6: Kai'sa/Sona/Ahri/Sett/Ezreal/Lux). Identity via match_any: Sig A ['ahri','sp3/006'] (norm 'sp3006', unique to this card — SP crossover numbering debuted in Vendetta) and Sig B ['ahri','crystal rose'] (descriptive form for listings omitting the number). Both distinguish the ALT ART from the regular 'Ahri, Inquisitive' set card (which has neither SP3/006 nor 'crystal rose'). Rejects the sibling Crystal Rose alt arts (Sona SP2, Lux SP5 etc. — no 'ahri'), lots/bundles, and the Chinese-language print (language 'english'). Verified offline FN=0/FP=0 and live-scraped (104 distinct -> 23 accepted, all genuine Ahri SP3/006, 0 FP). Mostly raw for now (recent release, little graded inventory); house grades still apply (PSA10/BGS10/BGS9.5/CGC10 alert if slabbed). Note SP3/006 is NOT a Pokemon-style X/Y number to is_lot (the '3' has no word boundary after 'SP').",
+      "queries": [
+        "riftbound ahri crystal rose vendetta sp3/006",
+        "ahri inquisitive crystal rose alt art riftbound vendetta",
+        "riftbound vendetta ahri sp3/006 alt art foil",
+        "ahri inquisitive crystal rose alt art"
+      ],
+      "match_any": [["ahri", "sp3/006"], ["ahri", "crystal rose"]],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'english': Riftbound has an English (Western) and a Chinese release sharing the SP3/006 number, so 'english' + the language layer scope to the English print while keeping terse listings (no language word -> 'unknown'); CJK/Chinese listings are dropped.",
+      "language": "english",
+      "min_price": null,
+      "max_price": null
     }
   ]
 }

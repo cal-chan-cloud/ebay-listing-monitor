@@ -27,6 +27,9 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 - **Luffy ST10-006 One Piece Day Dallas Promo** — the 2025 Dallas event exclusive (not the starter-deck ST10-006)
 - **3rd Anniversary Set (English, sealed)** — the sealed 2025 English boxed **set** (a sealed *product*, not a single; rejects the singles/promos/campaign-collection pulled from it)
 
+**Riftbound (League of Legends TCG):**
+- **Ahri, Inquisitive SP3/006** — Crystal Rose Alt Art from Vendetta (the Wild Rift skin crossover); keyed on `ahri` + `SP3/006`/`crystal rose` so it matches only the alt art, not the regular card (English; the Chinese print is dropped)
+
 **Pokémon** (`language: any` — see note):
 - **Giratina V 186/196** — Lost Origin alternate full art (not the regular V or any VSTAR)
 - **Mew ex 232/091** — Paldean Fates "Bubble Mew" Special Illustration Rare (not the 216/091 Shiny)
