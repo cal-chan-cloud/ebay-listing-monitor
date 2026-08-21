@@ -18,6 +18,7 @@ import argparse
 import html
 import json
 import os
+import random
 import re
 import sqlite3
 import sys
@@ -104,11 +105,21 @@ def enable_file_logging():
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Upgrade-Insecure-Requests": "1",
+    # Chrome client hints + fetch metadata. A request MISSING these reads as a bot to
+    # eBay's bot protection, which is quick to soft-block datacenter IPs (CI runners).
+    # Sending a real browser's full header set materially lowers the block rate.
+    "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
 }
 
 # eBay's bot protection 403s a cold request; visiting the homepage first seeds the
@@ -622,7 +633,14 @@ def _looks_blocked(text: str) -> bool:
     """eBay's soft block ('Pardon Our Interruption') returns HTTP 200 with no
     listings — detect it so we can re-prime and retry instead of reporting 0."""
     low = text.lower()
-    return ("pardon our interruption" in low) or ("s-item__link" not in text and "s-card" not in text and len(text) < 60000)
+    if any(sig in low for sig in (
+        "pardon our interruption", "checking your browser", "please verify you are a human",
+        "access to this page has been denied", "unusual traffic", "are you a robot",
+        "px-captcha", "/px/captcha", "captcha-delivery",
+    )):
+        return True
+    # No listing containers AND suspiciously short -> not a real results page.
+    return "s-item__link" not in text and "s-card" not in text and len(text) < 60000
 
 
 def fetch_listings(domain: str, query: str, max_attempts: int = 4, sold: bool = False,
@@ -637,8 +655,11 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4, sold: bool = 
     session = get_session(domain)
 
     html_text = None
+    # Referer = the eBay homepage: a search request looks like a click FROM the home
+    # page (which the session already primed), not a cold direct hit -> less bot-like.
+    ref = {"Referer": f"https://{domain}/"}
     for attempt in range(1, max_attempts + 1):
-        resp = session.get(url, timeout=25)
+        resp = session.get(url, headers=ref, timeout=25)
         if resp.status_code == 403 or _looks_blocked(resp.text):
             if attempt < max_attempts:
                 prime_session(domain)
@@ -751,7 +772,7 @@ def fetch_all(domain: str, watch: dict, delay: float = 0.3, sold: bool = False):
     merged = {}
     for i, q in enumerate(queries):
         if i:
-            time.sleep(delay)  # be gentle between searches
+            time.sleep(delay + random.uniform(0.1, 0.6))  # jittered — be gentle & less bot-like
         try:
             for lst in fetch_listings(domain, q, sold=sold, worldwide=worldwide):
                 merged.setdefault(lst["item_id"], lst)
@@ -760,7 +781,7 @@ def fetch_all(domain: str, watch: dict, delay: float = 0.3, sold: bool = False):
     return list(merged.values())
 
 
-def fetch_all_watches(domain: str, watches, workers: int = 6):
+def fetch_all_watches(domain: str, watches, workers: int = 3):
     """Fetch every watch's active listings CONCURRENTLY -> {index: listings}.
 
     Network fetch is the scan's bottleneck (dozens of sequential HTTP round-trips);
@@ -777,6 +798,7 @@ def fetch_all_watches(domain: str, watches, workers: int = 6):
 
     def _one(item):
         i, watch = item
+        time.sleep(random.uniform(0, 0.8))  # stagger workers so N searches don't burst at once
         try:
             return i, fetch_all(domain, watch)
         except Exception as e:
@@ -1395,7 +1417,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
     # Fetch every watch's active listings up front, in parallel (the scan's slow part
     # is HTTP, not compute). Processing below stays sequential in this thread.
     watches = cfg.get("watches", [])
-    fetched = fetch_all_watches(domain, watches, workers=int(cfg.get("scan_workers", 6)))
+    fetched = fetch_all_watches(domain, watches, workers=int(cfg.get("scan_workers", 3)))
 
     for wi, watch in enumerate(watches):
         name = watch["name"]
