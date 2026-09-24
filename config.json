@@ -372,24 +372,6 @@
       "max_price": null
     },
     {
-      "name": "Squirtle 132/165 Expedition Base Set (English, 2002)",
-      "_typical_price": "asking ~$40 raw (2026-09)",
-      "_note": "Pokemon, English (2002 WOTC Expedition Base Set — the first e-Card/e-Reader set). Squirtle 132/165, Common. Sig A ['squirtle','132/165'] is the primary anchor (norm '132165', unique to this card). Sig B ['squirtle','expedition','132'] rescues the terse '#132'-only PSA-slab form (where /165 is dropped), gated by 'expedition' + 'squirtle' so bare '132' can't leak. Rejects the common '131/165' seller typo (we key on the correct 132), other /165 cards (Bulbasaur 94/165), the McDonald's Squirtle 007/018, the Japanese Squirtle Deck, and multi-card /165 lots (is_lot). English WOTC prints share 132/165 across EU languages, so language 'english' + exonym excludes (German/Deutsch, French/Francais, Italian/Italiano, Spanish/Espanol, Dutch/Nederlands, Portuguese/Portugues, Liga/Ligue) scope to English. Verified offline FN=0/FP=0 (incl. Deutsch/Espanol rejects) and live-scraped. KNOWN residual: a listing whose ONLY foreign signal is a flag emoji (stripped by _norm) isn't catchable — rare. Vintage PSA 8/9 & CGC 9 -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
-      "queries": [
-        "squirtle 132/165 expedition base set",
-        "pokemon expedition squirtle 132 e-reader 2002",
-        "squirtle expedition 132/165 holo english",
-        "squirtle 132 e-card expedition"
-      ],
-      "match_any": [["squirtle", "132/165"], ["squirtle", "expedition", "132"]],
-      "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
-      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'english' + foreign-word/exonym excludes: the 132/165 collector number is shared across Expedition's Western-language prints, so the markers scope to English while terse English listings (no language word -> 'unknown') are kept; 'english' also drops any CJK.",
-      "language": "english",
-      "min_price": null,
-      "max_price": null
-    },
-    {
       "name": "Squirtle No.007 — 1999 Japanese Squirtle Deck / Intro Pack (Japanese)",
       "_typical_price": "asking ~$97 raw (2026-09)",
       "_note": "Pokemon, Japanese (1999 Intro Pack 'Squirtle Deck' / Zenigame deck — the Squirtle half; often titled 'VHS Intro Pack', it shipped with an instructional VHS). The deck holds FOUR different Squirtle cards (deck positions #16/#18/#37/#40, all printed 'No.007', different reprint artwork) — this watch tracks ALL of them (per the user's all-variants choice). Identity: 'squirtle' + set gate ['squirtle deck','intro pack','intro deck','vhs'] + dex ['007','no007']. Why NOT the deck position: 'squirtle' is the SET name (on every card in the deck), and bare positions 16/18/37/40 collide with stray digits (a live 'Fire Energy ... POP 18' leaked in) — so the reliable anchor is 'No.007' (printed on all 4 Squirtle, present in ~every real title), not the position. exclude ['wartortle','blastoise','venusaur'] drops same-deck siblings and is MANDATORY for cross-watch (norm 'squirtledeck' contains 'squirtle', so a Wartortle listing would otherwise satisfy the 'squirtle' clause). Mutually exclusive with the McDonald's 007/018 watch (Intro-Pack 'No.007' norms to '007'/'00718', never the contiguous '007018') and Expedition 132/165. Designed via 7-agent workflow (all-variants scope), verified offline FN=0/FP=0 (Fire-Energy leak closed) and live-scraped (180 distinct -> 28 accepted, all genuine deck Squirtle #16/#18/#40, 0 sibling leak, 0 recall miss). Vintage PSA 8/9 -> other_graded (raw + top grades only). Edge: a rare listing printing only a position number and NOT 'No.007' would be missed.",
