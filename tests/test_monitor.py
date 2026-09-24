@@ -122,6 +122,19 @@ ok("en keeps 'not any japanese'", m.passes_language("Psyduck #20 not any Japanes
 ok("drops 'not the cheap japanese'", not m.passes_language("Charizard not the cheap Japanese knockoff", "english"))
 ok("drops bare japanese", not m.passes_language("Mew ex 347/190 Japanese SAR", "english"))
 ok("bare japanese still dropped", not m.passes_language("Luffy OP05-119 Japanese", "english"))
+# European-language prints share the collector number, so an 'english' watch must DROP
+# them (added when Aquapolis turned out NOT to be English-only). Whole-word markers +
+# only the safe short abbreviations (ita/ital/deu), never fr/de/it/es.
+check("italiano -> eu", m.title_language("Umbreon H29/H32 Aquapolis Italiano"), "eu")
+check("deutsch -> eu", m.title_language("Umbreon H29/H32 Aquapolis Deutsch"), "eu")
+check("ITA abbrev -> eu", m.title_language("Azumarill H4/H32 Aquapolis Holo ITA WOTC"), "eu")
+ok("en drops eu (italian)", not m.passes_language("Umbreon H29/H32 Aquapolis Italian", "english"))
+ok("en drops eu (francais)", not m.passes_language("Charizard 100/97 EX Dragon francais", "english"))
+ok("any keeps eu", m.passes_language("Umbreon H29 Aquapolis Italiano", "any"))
+# safety: 'ita' inside a word (digital) must NOT flag; 'FR'=Fair grade must NOT flag French
+check("digital not eu (word boundary)", m.title_language("Pokemon Digital Umbreon H29 Aquapolis"), "unknown")
+check("FR=Fair not eu", m.title_language("Charizard 100/97 EX Dragon FR condition"), "unknown")
+ok("en keeps 'English NOT German'", m.passes_language("Umbreon H29 Aquapolis English NOT German", "english"))
 
 print("== matches_filters / require / aliases / match_any ==")
 ok("require hit (punct-insensitive)", m.matches_filters("Luffy OP05 119 Manga", ["op05-119"], []))
@@ -176,6 +189,22 @@ ok("extended art case excluded",
    not m.matches_filters("Celebi V 245/264 Fusion Strike Extended Art Case Display", ["celebi v"], []))
 ok("real card not excluded by art-case term",
    m.matches_filters("Mew ex 232/091 Paldean Fates SIR NM", ["mew ex"], []))
+# session-added merch/proxy excludes (DEFAULT_EXCLUDE) — dropped everywhere
+ok("fan art excluded",
+   not m.matches_filters("Squirtle 007/018 McDonald's Fan Art Card", ["squirtle"], []))
+ok("custom art excluded",
+   not m.matches_filters("Squirtle 007/018 Custom Art Card", ["squirtle"], []))
+ok("hand painted excluded",
+   not m.matches_filters("Lugia 9/111 Hand Painted Neo Genesis", ["lugia"], []))
+ok("acrylic card-case merch excluded",
+   not m.matches_filters("Luffy OP05-119 Acrylic Card Case Display", ["op05-119"], []))
+ok("playmat merch excluded",
+   not m.matches_filters("Charizard 100/97 EX Dragon Playmat", ["charizard"], []))
+# ...but a real card 'in a case' / a 'customs' mention must NOT be excluded (no adjacent merch phrase)
+ok("card in hard case not excluded",
+   m.matches_filters("Charizard 4/102 Base Set in hard case NM", ["charizard"], []))
+ok("customs fee not excluded",
+   m.matches_filters("Squirtle 007/018 McDonald's buyer pays customs fees", ["squirtle"], []))
 
 print("== is_auction ==")
 ok("auction with bids", m.is_auction({"bids": "5 bids", "format": None}))
@@ -235,6 +264,21 @@ ok("flags bad region", any("unrecognized region" in w for w in warns))
 _row = m.validate_config({"watches": [{"name": "R", "queries": ["x"], "require": ["a"],
     "grades": ["ungraded"], "reference_override": {"ungraded": "$75"}}]})
 ok("flags bad reference_override", any("reference_override" in w and "numeric" in w for w in _row))
+# scan-aggressiveness guard (encodes the eBay rate-block lesson: bursts/volume block)
+_aggro = m.validate_config({
+    "poll_interval_seconds": 60, "priority_interval_seconds": 30,
+    "scan_workers": 4, "min_request_interval_seconds": 0,
+    "watches": [{"name": f"w{i}", "queries": ["a", "b", "c", "d"], "require": ["x"],
+                 "grades": ["ungraded"], "price_alerts": [{"below": 1, "mention": "1"}]} for i in range(20)],
+})
+ok("flags high scan rate", any("req/min" in w for w in _aggro))
+ok("flags request bursts", any("BURSTS" in w for w in _aggro))
+_safe = m.validate_config({
+    "poll_interval_seconds": 300, "priority_interval_seconds": 120,
+    "scan_workers": 1, "max_queries_per_watch": 2, "min_request_interval_seconds": 2.0,
+    "watches": [{"name": f"w{i}", "queries": ["a", "b"], "require": ["x"], "grades": ["ungraded"]} for i in range(32)],
+})
+ok("safe cadence -> no rate/burst warning", not any(("req/min" in w or "BURSTS" in w) for w in _safe))
 
 print("== discord sender (author cap + transient-error retry) ==")
 _cap = []
@@ -664,6 +708,32 @@ _seen_ww.clear()
 _REAL_FETCH_ALL("www.ebay.com", {"name": "w", "queries": ["q"]})
 ok("normal watch -> US-only fetch", _seen_ww.get("v") is False)
 m.fetch_listings = _saved_fl
+
+print("== max_queries cap (rate-limit safety) ==")
+_qcalls = []
+def _cap_q(d, q, sold=False, worldwide=False, **k):
+    _qcalls.append(q)
+    return []
+_saved_fl3 = m.fetch_listings
+m.fetch_listings = _cap_q
+_REAL_FETCH_ALL("www.ebay.com", {"name": "w", "queries": ["a", "b", "c", "d"]}, max_queries=2)
+ok("max_queries caps to 2", len(_qcalls) == 2)
+_qcalls.clear()
+_REAL_FETCH_ALL("www.ebay.com", {"name": "w", "queries": ["a", "b", "c", "d"]})
+ok("no cap -> all 4 queries", len(_qcalls) == 4)
+m.fetch_listings = _saved_fl3
+
+print("== request throttle (anti-burst spacing) ==")
+import time as _time
+_saved_mri = m._MIN_REQUEST_INTERVAL
+m._MIN_REQUEST_INTERVAL = 0.2
+m._LAST_REQUEST_AT[0] = 0.0
+m._throttle_request()          # first call primes the clock (no wait)
+_t0 = _time.time()
+m._throttle_request()          # second must wait ~one interval
+ok("throttle enforces >= interval between requests", (_time.time() - _t0) >= 0.18)
+m._MIN_REQUEST_INTERVAL = _saved_mri
+m._LAST_REQUEST_AT[0] = 0.0
 
 print("== price_alerts (@mention on an absolute price target) ==")
 # --- pure helpers ---

@@ -2,9 +2,11 @@ name: eBay Listing Monitor
 
 # GitHub throttles scheduled cron hard (measured ~80 min median between fires, not
 # the 5 min requested). So instead of one pass per trigger, each triggered job LOOPS
-# internally for ~50 minutes, scanning every ~3 min (poll_interval_seconds in
+# internally for ~50 minutes, scanning every ~5 min (poll_interval_seconds in
 # config.json), then exits so the updated seen.db is committed once. This turns the
-# unreliable ~hourly trigger into ~3-min notification granularity while a job runs.
+# unreliable ~hourly trigger into ~5-min notification granularity while a job runs.
+# (Scans are throttled to a smooth, browser-like request rate to avoid eBay's
+# rate-block — see min_request_interval_seconds / scan_workers in config.json.)
 on:
   schedule:
     - cron: "*/5 * * * *"

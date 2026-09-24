@@ -1928,6 +1928,28 @@ def validate_config(cfg):
     for r in cfg.get("allowed_regions", []):
         if canon_region(r) in (None, "OTHER"):
             warnings.append(f"top-level allowed_regions: unrecognized region {r!r}")
+    # Scan-aggressiveness guard. eBay rate-blocks on request BURSTS/volume: a sustained,
+    # smoothly-spaced ~27 req/min tested safe, but ~38/min — and concurrent bursts even at a
+    # lower average — got the CI runner soft-blocked (0 matches -> HEALTH DOWN). Warn before
+    # that state can be silently re-introduced by cranking the cadence or concurrency.
+    try:
+        effq = int(cfg.get("max_queries_per_watch") or max(
+            (len(w.get("queries") or ([w["query"]] if w.get("query") else [])) for w in watches),
+            default=1))
+        poll = float(cfg.get("poll_interval_seconds", 300)) or 300
+        prio = float(cfg.get("priority_interval_seconds", 120)) or 120
+        npri = sum(1 for w in watches if w.get("price_alerts") or w.get("priority"))
+        avg_rate = len(watches) * effq * 60.0 / poll + npri * effq * 60.0 / prio
+        workers = int(cfg.get("scan_workers", 3))
+        min_int = float(cfg.get("min_request_interval_seconds", 0) or 0)
+        if avg_rate > 30:
+            warnings.append(f"scan rate ~{avg_rate:.0f} req/min may trip eBay's rate block "
+                            "(sustained ~27/min tested safe) — raise poll/priority interval or lower max_queries_per_watch")
+        if workers > 1 and min_int < 1.0:
+            warnings.append(f"scan_workers={workers} with min_request_interval_seconds={min_int} allows request BURSTS "
+                            "(these block eBay even at low average rate) — set scan_workers:1 or min_request_interval_seconds>=1.5")
+    except Exception:
+        pass
     for wmsg in warnings:
         print(f"config warning: {wmsg}", file=sys.stderr)
     return warnings
