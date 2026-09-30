@@ -1989,6 +1989,16 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                                  (new_pa, name, item_id))
                     conn.commit()
                     pa_flags[item_id] = new_pa
+                # First sighting through a query this watch has never run (a rotated-in tail
+                # query, a reordered/new phrasing): the price moved while the listing was out
+                # of view. Re-baseline it silently instead of a burst of stale drop / below-
+                # market pings (a price-TARGET crossing, handled above, still pings).
+                if seed_q and lst.get("_q") and lst["_q"] <= seed_q:
+                    if cur != ref_price:
+                        nb = 1 if (below or ref_below) else 0
+                        price_updates.append((cur, cur_str, nb, item_id))
+                        seen_prices[item_id] = (cur, cur_str, nb)
+                    continue
                 # (1) price drop?
                 if cur <= ref_price * (1 - drop_pct / 100) and (ref_price - cur) >= drop_min:
                     pct = round((ref_price - cur) / ref_price * 100)

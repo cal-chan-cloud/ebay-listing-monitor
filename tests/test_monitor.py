@@ -1746,6 +1746,46 @@ for _k, _v in _sv3.items():
     setattr(m, _k, _v)
 m.time.sleep = _sv3_sleep
 
+print("== an old listing first re-seen via a never-run query: no stale drop, target still pings ==")
+_sv4 = {k: getattr(m, k) for k in ("fetch_all", "fetch_listings", "get_market_prices", "active_asking_reference",
+                                    "send_discord", "send_simple_discord")}
+_sv4_sleep = m.time.sleep
+m.time.sleep = lambda s: None
+_X4 = []
+m.send_discord = lambda url, name, lst, grade, **k: _X4.append((k.get("event", "new"), lst["item_id"], k.get("mention")))
+m.send_simple_discord = lambda *a, **k: None
+m.get_market_prices = lambda *a, **k: {}
+m.active_asking_reference = lambda *a, **k: {}
+m.fetch_all = _REAL["fetch_all"]
+_P4 = {}
+m.fetch_listings = lambda d, q, **k: [dict(x) for x in _P4.get(q, [])]
+_f4 = os.path.join(_TMPD, "ebay_test4_stale.db")
+if os.path.exists(_f4):
+    os.remove(_f4)
+m.DB_PATH = _f4
+_c4 = m.db_connect()
+for _k, _v in (("ask_baseline_done", m.ASK_BASELINE_VERSION), ("pa_baseline_done", "1"),
+               ("cgc10_baseline_done", "1"), ("health", "ok")):
+    m.meta_set(_c4, _k, _v)
+_W4 = {"name": "ST", "queries": ["A", "B", "C"], "rotate_queries": True, "require": ["232/091"],
+       "grades": ["psa10"], "language": "any", "price_alerts": [{"grade": "psa10", "below": 2700, "mention": "U"}]}
+for _iid, _pr in (("oldc", 3500.0), ("oldt", 3000.0)):
+    _c4.execute("INSERT INTO seen(watch,item_id,grade,first_seen,price,price_str,last_seen,below_alerted,price_alerted)"
+                " VALUES('ST',?,'psa10','2026-08-01T00:00:00',?,?,?,0,0)",
+                (_iid, _pr, f"${_pr}", m.datetime.now(m.timezone.utc).date().isoformat()))
+_c4.commit()
+_P4.update({"A": [_PL("a1", 3100)], "B": [], "C": [_PL("oldc", 2900), _PL("oldt", 2500)]})
+m.meta_set(_c4, "query_rot", "1")                               # window [A, C]; C never ran
+m.scan_once({"discord_webhook_url": "https://x", "ebay_domain": "www.ebay.com", "min_request_interval_seconds": 0,
+             "max_queries_per_watch": 2, "watches": [_W4]}, _c4)
+_ev4 = {(e, i) for e, i, _ in _X4}
+ok("a 17% cut seen for the first time via a fresh query sends no stale 'drop'", ("drop", "oldc") not in _ev4)
+ok("...its stored price is re-baselined", _c4.execute("SELECT price FROM seen WHERE item_id='oldc'").fetchone()[0] == 2900)
+ok("...but a listing now under the price target still @mentions", ("price_alert", "oldt") in _ev4)
+for _k, _v in _sv4.items():
+    setattr(m, _k, _v)
+m.time.sleep = _sv4_sleep
+
 print("\n==== RESULT ====")
 if fails:
     print("FAILURES:", fails)
