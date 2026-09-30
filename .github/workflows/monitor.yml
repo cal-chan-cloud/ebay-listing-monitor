@@ -3,7 +3,7 @@ name: eBay Listing Monitor
 # GitHub throttles scheduled cron hard (fires land every ~2-7 h, not the 5 min
 # requested). So instead of one pass per trigger, each triggered job LOOPS internally in
 # two ~105-min segments (seen.db is committed after each), running a full scan of every
-# watch roughly every 10-12 min and the price-target (priority) watches every ~2-3 min. The next cron fire queues behind a running job (concurrency group), so
+# watch roughly every 12-14 min and the price-target (priority) watches every ~2-3 min. The next cron fire queues behind a running job (concurrency group), so
 # coverage is near-continuous instead of ~50 min per ~2.5 h. A config/code push is
 # picked up at the next segment boundary. (Scans are throttled to a smooth, browser-like
 # request rate to avoid eBay's rate-block — see min_request_interval_seconds /

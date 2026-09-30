@@ -79,7 +79,7 @@ of whether any local machine is on:
   September, not the 5 min requested). So each triggered job **loops in two ~105-minute segments**
   (`--loop-for-minutes 105`, `seen.db` committed after each), and the next cron fire
   queues behind the running job, so coverage is near-continuous rather than ~50 min
-  per ~2.5 h. While a job runs, a full scan of every watch starts roughly every 10-12 min:
+  per ~2.5 h. While a job runs, a full scan of every watch starts roughly every 12-14 min (measured ~13 min):
   `poll_interval_seconds` (300) is the minimum time from the END of one full scan to
   the start of the next, checked on priority ticks, so the real period is about
   full-scan time + 360s + two priority passes. Scans are serial (`scan_workers`: 1) behind a 2s global
