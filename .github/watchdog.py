@@ -21,7 +21,8 @@ import sys
 import urllib.request
 from datetime import datetime, timezone
 
-STALE_HOURS = 5.0     # GitHub cron gaps of ~3.8h were observed; alert only past that
+STALE_HOURS = 5.0     # alert when no monitor run has been ACTIVE for this long
+TIMEOUT_MINUTES = 250  # monitor.yml timeout-minutes: a run cancelled after this long hit it
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # repo root
 DB = os.path.join(HERE, "seen.db")
@@ -57,8 +58,8 @@ def recent_runs():
     """
     try:
         out = subprocess.check_output(
-            ["gh", "run", "list", "--workflow", "monitor.yml", "-L", "5",
-             "--json", "createdAt,status,conclusion", "-R", REPO],
+            ["gh", "run", "list", "--workflow", "monitor.yml", "-L", "20",
+             "--json", "createdAt,startedAt,updatedAt,status,conclusion", "-R", REPO],
             text=True, timeout=60)
         return json.loads(out)
     except Exception as e:
@@ -91,14 +92,38 @@ def main():
 
     runs = recent_runs()
     if runs:
-        newest = datetime.fromisoformat(runs[0]["createdAt"].replace("Z", "+00:00"))
-        age_h = (now - newest).total_seconds() / 3600
-        if age_h > STALE_HOURS:
-            problems.append(
-                f"No monitor run has started in {age_h:.1f}h (last: {newest:%Y-%m-%d %H:%M} UTC). "
-                "GitHub cron may be throttled/disabled, or the workflow is failing to trigger.")
-        completed = [r for r in runs if r.get("status") == "completed"]
-        if completed and completed[0].get("conclusion") == "failure":
+        def _t(r, k):
+            v = r.get(k) or r.get("createdAt")
+            return datetime.fromisoformat(v.replace("Z", "+00:00"))
+
+        def _minutes(r):
+            return (_t(r, "updatedAt") - _t(r, "createdAt")).total_seconds() / 60
+
+        # GitHub reports a job that hit timeout-minutes as conclusion 'cancelled' (never
+        # 'timed_out'). A short 'cancelled' run is a superseded pending run (the concurrency
+        # group cancels it) or a manual cancel: it neither scanned nor crashed, so it must
+        # not mask the real last run. A QUEUED run hasn't scanned anything either.
+        timed_out = [r for r in runs if r.get("status") == "completed"
+                     and r.get("conclusion") == "cancelled" and _minutes(r) >= TIMEOUT_MINUTES]
+        real = [r for r in runs if r.get("conclusion") not in ("cancelled", "skipped") or r in timed_out]
+        # Liveness = when a run was last ACTIVE: now, if one is running (a multi-hour looping
+        # job; a hung one is bounded by timeout-minutes), else the END (updatedAt) of the
+        # newest run that really ran. startedAt is useless here: GitHub sets it to createdAt,
+        # which includes time spent waiting in the concurrency queue.
+        running = any(r.get("status") == "in_progress" for r in runs)
+        ended = [_t(r, "updatedAt") for r in real if r.get("status") == "completed"]
+        if not running:
+            last = max(ended) if ended else _t(runs[-1], "createdAt")
+            idle_h = (now - last).total_seconds() / 3600
+            if idle_h > STALE_HOURS:
+                problems.append(
+                    f"No monitor run has been active for {idle_h:.1f}h (last ended: {last:%Y-%m-%d %H:%M} UTC). "
+                    "GitHub cron may be throttled/disabled, or the workflow is failing to trigger.")
+        completed = [r for r in real if r.get("status") == "completed"]
+        if completed and completed[0] in timed_out:
+            problems.append(f"The most recent monitor run hit the {TIMEOUT_MINUTES}-min job timeout "
+                            "(hung) and was cancelled.")
+        elif completed and completed[0].get("conclusion") in ("failure", "startup_failure"):
             problems.append("The most recent completed monitor run FAILED — the job is crashing.")
     elif runs is None:
         # gh ERRORED — fall back to a gh-independent liveness signal (seen.db commit

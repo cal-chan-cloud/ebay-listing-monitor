@@ -16,6 +16,10 @@ import ebay_monitor as m
 # Real fetch_all captured before any test mocks m.fetch_all (it calls the module-global
 # fetch_listings by name, so patching m.fetch_listings still applies to this reference).
 _REAL_FETCH_ALL = m.fetch_all
+# Other real functions later tests need after earlier sections mocked them.
+_REAL = {k: getattr(m, k) for k in ("fetch_all", "fetch_listings", "fetch_sold_sales", "get_market_prices",
+                                    "active_asking_reference", "send_discord", "send_simple_discord",
+                                    "get_session")}
 
 # Emojis appear in some log lines. Production wraps stdout in _Tee (which swallows
 # console-encoding errors) and CI is UTF-8; a bare Windows console (cp1252) is not,
@@ -25,6 +29,9 @@ for _s in (sys.stdout, sys.stderr):
         _s.reconfigure(errors="replace")
     except Exception:
         pass
+
+# Private temp dir per run: fixed %TEMP% DB names collided when two suites ran at once.
+_TMPD = tempfile.mkdtemp(prefix="ebay_test_")
 
 fails = []
 
@@ -334,7 +341,7 @@ WATCH = {"name": "W", "require": ["op05-119"], "grades": ["ungraded"], "language
 CFG = {"discord_webhook_url": "https://discord.test/wh", "ebay_domain": "www.ebay.com",
        "price_drop_pct": 5, "price_drop_min": 1, "watches": [WATCH]}
 
-tmp = os.path.join(tempfile.gettempdir(), "ebay_test_monitor.db")
+tmp = os.path.join(_TMPD, "ebay_test_monitor.db")
 if os.path.exists(tmp):
     os.remove(tmp)
 m.DB_PATH = tmp
@@ -364,8 +371,8 @@ jp = L("7", "$10.00", 10.0); jp["location"] = "Japan"
 res = run([jp, L("1", "$200.00", 200.0)])   # jp excluded (region); item 1 seen -> no alert
 ok("japan listing excluded in scan", not any(r[1] == "7" for r in res))
 
-# scan_once returns the number of alerts fired (loop mode uses this to persist seen.db
-# immediately after an alerting scan, so a cancelled/killed job can't cause re-pings).
+# scan_once returns the number of alerts fired this pass (informational; CI persists
+# seen.db after each loop segment, see .github/persist.sh).
 def run_ret(fixtures, **kw):
     m.fetch_listings = lambda d, q, **k: list(fixtures)
     m.fetch_all = lambda d, w, **k: list(fixtures)
@@ -553,7 +560,7 @@ ok("no below-market storm on first reference",
    not any(r[0] == "below_market" for r in sends))
 flags = [r[0] for r in conn.execute("SELECT below_alerted FROM seen WHERE watch='BL'")]
 ok("below flags baselined instead", all(f == 1 for f in flags))
-ok("baseline marked done", m.meta_get(conn, "ask_baseline_done") == "1")
+ok("baseline marked done", m.meta_get(conn, "ask_baseline_done") == m.ASK_BASELINE_VERSION)
 # A genuine later crossing still alerts. Clear the flag only (changing the stored
 # price would register as a price DROP and short-circuit the below check).
 conn.execute("UPDATE seen SET below_alerted=0 WHERE watch='BL' AND item_id='bl0'")
@@ -772,12 +779,12 @@ _paw = {"name": "PA", "require": ["232/091"], "grades": ["ungraded", "psa10"], "
         "price_alerts": [{"grade": "psa10", "below": 2700, "mention": _MENT}]}
 _PACFG = {"discord_webhook_url": "https://discord.test/wh", "ebay_domain": "www.ebay.com",
           "allow_unknown_region": True, "watches": [_paw]}
-_padb = os.path.join(tempfile.gettempdir(), "ebay_test_pa.db")
+_padb = os.path.join(_TMPD, "ebay_test_pa.db")
 if os.path.exists(_padb):
     os.remove(_padb)
 m.DB_PATH = _padb
 paconn = m.db_connect()
-m.meta_set(paconn, "ask_baseline_done", "1")
+m.meta_set(paconn, "ask_baseline_done", m.ASK_BASELINE_VERSION)
 m.meta_set(paconn, "pa_baseline_done", "1")
 _sv_gmp, _sv_aar, _sv_send = m.get_market_prices, m.active_asking_reference, m.send_discord
 m.get_market_prices = lambda *a, **k: {}
@@ -829,12 +836,12 @@ ok("pa: wrong grade no ping",
    [x for x in _parun([_PL("ung", 50, grade_prefix="")]) if x["id"] == "ung"][0]["mention"] is None)
 
 # baseline suppresses the first-scan flood but records flags
-_padb2 = os.path.join(tempfile.gettempdir(), "ebay_test_pa2.db")
+_padb2 = os.path.join(_TMPD, "ebay_test_pa2.db")
 if os.path.exists(_padb2):
     os.remove(_padb2)
 m.DB_PATH = _padb2
 paconn2 = m.db_connect()
-m.meta_set(paconn2, "ask_baseline_done", "1")   # pa_baseline_done deliberately unset
+m.meta_set(paconn2, "ask_baseline_done", m.ASK_BASELINE_VERSION)   # pa_baseline_done deliberately unset
 paconn2.execute("INSERT INTO seen(watch,item_id,grade,first_seen,price,price_str,last_seen,"
                 "below_alerted,price_alerted) VALUES('PA','b1','psa10','2026-01-01T00:00:00',"
                 "2600,'$2600','2026-01-01',0,0)")
@@ -852,7 +859,7 @@ def _mk_arcfg(allregions):
     if allregions:
         w["all_regions"] = True
     return {"discord_webhook_url": "https://discord.test/wh", "ebay_domain": "www.ebay.com", "watches": [w]}
-_ardb = os.path.join(tempfile.gettempdir(), "ebay_test_ar.db")
+_ardb = os.path.join(_TMPD, "ebay_test_ar.db")
 def _ar_run(cfg, fixtures):
     if os.path.exists(_ardb):
         os.remove(_ardb)
@@ -871,12 +878,12 @@ ok("all_regions on -> Japan alerts",
    [x for x in _ar_run(_mk_arcfg(True), [_jp2]) if x["id"] == "jp1"] != [])
 
 # cgc10 grade + one-time silent baseline (seed pre-existing CGC 10 without alerting)
-_cdb = os.path.join(tempfile.gettempdir(), "ebay_test_cgc.db")
+_cdb = os.path.join(_TMPD, "ebay_test_cgc.db")
 if os.path.exists(_cdb):
     os.remove(_cdb)
 m.DB_PATH = _cdb
 cconn = m.db_connect()
-m.meta_set(cconn, "ask_baseline_done", "1")     # isolate the cgc10 baseline under test
+m.meta_set(cconn, "ask_baseline_done", m.ASK_BASELINE_VERSION)     # isolate the cgc10 baseline under test
 _ccfg = {"discord_webhook_url": "https://discord.test/wh", "ebay_domain": "www.ebay.com",
          "watches": [{"name": "CG", "require": ["232/091"], "language": "any",
                       "grades": ["ungraded", "psa10", "cgc10"], "allow_unknown_region": True}]}
@@ -903,12 +910,12 @@ ok("cgc10 post-baseline: new CGC 10 alerts", any(x["id"] == "c2" for x in _r2))
 ok("cgc10 post-baseline: baselined CGC 10 not re-alerted", [x for x in _r2 if x["id"] == "c1"] == [])
 
 # sealed_product: reject dash-code singles, keep the sealed box, don't false-reject ship dates
-_sdb = os.path.join(tempfile.gettempdir(), "ebay_test_sealed.db")
+_sdb = os.path.join(_TMPD, "ebay_test_sealed.db")
 if os.path.exists(_sdb):
     os.remove(_sdb)
 m.DB_PATH = _sdb
 sconn = m.db_connect()
-m.meta_set(sconn, "ask_baseline_done", "1"); m.meta_set(sconn, "cgc10_baseline_done", "1")
+m.meta_set(sconn, "ask_baseline_done", m.ASK_BASELINE_VERSION); m.meta_set(sconn, "cgc10_baseline_done", "1")
 _scfg = {"discord_webhook_url": "https://discord.test/wh", "ebay_domain": "www.ebay.com",
          "watches": [{"name": "SEAL", "require": ["one piece", "3rd anniv", "set"], "exclude": ["campaign"],
                       "sealed_product": True, "grades": ["ungraded"], "language": "english", "min_price": 500}]}
@@ -938,12 +945,12 @@ m.get_market_prices, m.active_asking_reference, m.send_discord = _sv_gmp, _sv_aa
 
 # a non-numeric reference_override must NOT crash the scan (it wedges this + all later
 # watches in the CI loop). The runtime guard skips it and keeps scanning. (audit fix)
-_rodb = os.path.join(tempfile.gettempdir(), "ebay_test_ro.db")
+_rodb = os.path.join(_TMPD, "ebay_test_ro.db")
 if os.path.exists(_rodb):
     os.remove(_rodb)
 m.DB_PATH = _rodb
 _roconn = m.db_connect()
-m.meta_set(_roconn, "ask_baseline_done", "1")
+m.meta_set(_roconn, "ask_baseline_done", m.ASK_BASELINE_VERSION)
 _ro_g, _ro_a, _ro_s = m.get_market_prices, m.active_asking_reference, m.send_discord
 m.get_market_prices = lambda *a, **k: {}
 m.active_asking_reference = lambda *a, **k: {}
@@ -971,13 +978,13 @@ ok("priority_watches picks price_alert + explicit-priority watches",
    [w["name"] for w in m.priority_watches({"watches": [
        {"name": "A", "price_alerts": [{"below": 1}]}, {"name": "B"}, {"name": "C", "priority": True}]})] == ["A", "C"])
 ok("priority_watches empty when none", m.priority_watches({"watches": [{"name": "B"}]}) == [])
-_pdb = os.path.join(tempfile.gettempdir(), "ebay_test_prio.db")
+_pdb = os.path.join(_TMPD, "ebay_test_prio.db")
 if os.path.exists(_pdb):
     os.remove(_pdb)
 m.DB_PATH = _pdb
 _pconn = m.db_connect()
-for _k in ("ask_baseline_done", "cgc10_baseline_done"):
-    m.meta_set(_pconn, _k, "1")
+m.meta_set(_pconn, "ask_baseline_done", m.ASK_BASELINE_VERSION)
+m.meta_set(_pconn, "cgc10_baseline_done", "1")
 m.meta_set(_pconn, "health", "ok")
 _pg, _pa2, _ps2, _pss = m.get_market_prices, m.active_asking_reference, m.send_discord, m.send_simple_discord
 m.get_market_prices = lambda *a, **k: {}
@@ -1002,6 +1009,742 @@ ok("priority sub-scan skips the health check (no false down)", m.meta_get(_pconn
 m.scan_once(_pcfg, _pconn, full_scan=True)   # ...but a full 0-scraped scan does flag it
 ok("full scan still runs the health check", m.meta_get(_pconn, "health") == "down")
 m.get_market_prices, m.active_asking_reference, m.send_discord, m.send_simple_discord = _pg, _pa2, _ps2, _pss
+
+# ==========================================================================
+# 2026-09 deep-review fixes
+# ==========================================================================
+print("== grading-candidate / negated grades are not slabs ==")
+for _t in ("Mew ex 232/091 Paldean Fates SIR NM PSA 10 Potential", "Mew ex 232/091 Pack Fresh - PSA 10 Candidate?",
+           "Mew ex 232/091 SIR Raw Mint could be a PSA 10", "Gengar 94/102 POTENTIAL for PSA 10",
+           "Mew ex 232/091 SIR raw psa 10?", "Charizard CGC 10 potential"):
+    check(f"candidate -> ungraded: {_t[-24:]}", m.classify_grade(_t), "ungraded")
+check("negated grade keeps real slab (cgc10)", m.classify_grade("Charizard CGC 10 Pristine not PSA 10"), "cgc10")
+check("CGC 9.5 not PSA 10 -> other_graded", m.classify_grade("Charizard CGC 9.5 not PSA 10"), "other_graded")
+for _t in ("Mew ex PSA 10 - Ready To Ship", "Mew ex PSA 10 (Possible Pop Increase)", "Awakened Potential PSA 10",
+           "Prizm Auto PSA 10 Potential Penmanship", "Mew ex 232/091 PSA 10 GEM MINT"):
+    check(f"real slab stays psa10: {_t[-26:]}", m.classify_grade(_t), "psa10")
+
+print("== unnamed / unknown-grader slabs ==")
+for _t in ("Monkey D. Luffy ST26-005 SP Foil Graded 2026", "Espeon Crossing the Ruins Holo PRISTINE 10 GOLD LABEL",
+           "Lugia 9/111 Neo Genesis Holo TAG Graded NM/MT", "Espeon 1/75 wotc OCE - PRISTINE 10",
+           "Light Arcanine 059 Ace Graded Mint 9"):
+    check(f"unnamed slab -> other_graded: {_t[-26:]}", m.classify_grade(_t), "other_graded")
+for _t in ("Charizard Gem Mint 10 Candidate", "Charizard Un-Graded raw", "Charizard Never been graded",
+           "Charizard Ungraded NM", "Charizard Pre-Graded", "Lightly played not graded"):
+    check(f"raw stays ungraded: {_t[-22:]}", m.classify_grade(_t), "ungraded")
+check("BGS 10 Black Label stays bgs10", m.classify_grade("Charizard BGS 10 Black Label"), "bgs10")
+
+print("== quantity multiples ==")
+for _t in ("Rayquaza 3/17 Holo Pokemon POP Series 1 X6",
+           "PSA 10 Luffy Gold Silver OP05-119 Manga Alt Art Parallel One Piece Set of 3",
+           "4x Ho-Oh ex Lugia ex Promo Pokemon Card Play Set", "Mew ex 232/091 x2 NM"):
+    ok(f"multiple flagged: {_t[-28:]}", m.is_bulk_or_sealed(_t))
+for _t in ("Charizard X 25/108", "M Charizard EX X 13/106", "One Piece 3rd Anniversary Set English",
+           "Rayquaza 3/17 Holo POP Series 1"):
+    ok(f"single not flagged: {_t[-28:]}", not m.is_bulk_or_sealed(_t))
+
+print("== merch / toy / fan-made excludes ==")
+_DALLAS = ["luffy", "one piece day", "dallas"]
+_ANNIV = ["one piece", ["3rd anniv", "third anniv"], "set"]
+for _t, _req in (("Rayquaza V Alt Art Evolving Skies 194/203 Pokemon TCG Card Novelty Keychain", ["rayquaza", "194/203"]),
+                 ("The Pokemon Company Mew ex 232/091 Special Illustration Rare (Keychain)", ["232/091"]),
+                 ("Mew ex 232/091 Paldean Fates Card Blanket 50x60", ["232/091"]),
+                 ("Mew ex 232/091 *Fantasy Art* Card", ["232/091"]),
+                 ("Slowking H22/H32 Aquapolis Pokemon Hand Drawn DIY", ["slowking", "h22"]),
+                 ("Tamashi Logotype Luffy Figure One Piece Day Dallas 2025 Exclusive", _DALLAS),
+                 ("One Piece Day Dallas 2025 Luffy Key Chain", _DALLAS),
+                 ("One Piece Card Game 3rd Anniversary Set Tamashii Logotype Luffy Figure", _ANNIV),
+                 ("LUFFY's ONE PIECE Card Game -LOGOTYPE- Figure 3rd Anniversary Set Tamashii Nations", _ANNIV)):
+    ok(f"merch rejected: {_t[:40]}", not m.matches_filters(_t, _req, []))
+ok("genuine Dallas single still matches",
+   m.matches_filters("Monkey.D.Luffy (One Piece Day Dallas 2025) ST10-006 One Piece Card", _DALLAS, []))
+ok("genuine sealed 3rd Anniversary set still matches",
+   m.matches_filters("ONE PIECE CARD GAME English Version 3rd Anniversary Set BANDAI IN HAND NEW", _ANNIV, []))
+
+print("== played / damaged copies ==")
+for _t in ("Lugia 9/111 Neo Genesis Holo DMG", "Umbreon H29/H32 Aquapolis Holo HP", "Espeon (LP/MP)",
+           "Rayquaza 3/17 Pokemon TCG POP Series 1 HP", "Giratina (10) Reverse Holo Rare Platinum 10/127 HP",
+           "Charizard 100/97 Heavily Played", "Lugia Holo creased"):
+    ok(f"played: {_t[-30:]}", m.is_played(_t))
+for _t in ("Espeon 1/75 Neo Discovery Holo Rare 80 HP English", "Charizard ex HP 170", "Charizard 310HP",
+           "Lugia 9/111 No damage near mint", "Lugia 9/111 Holo NM"):
+    ok(f"not played: {_t[-30:]}", not m.is_played(_t))
+_pa_w = {"name": "PLY", "require": ["lugia"], "grades": ["ungraded"]}
+_pa_pool = [dict(L(f"pl{i}", "$50.00", 50.0, title="Lugia 9/111 Holo HP")) for i in range(8)] + \
+           [dict(L(f"nm{i}", f"${100 + i}", 100.0 + i, title="Lugia 9/111 Holo NM")) for i in range(8)]
+ok("played copies excluded from the raw asking reference",
+   m.active_asking_reference(_pa_pool, _pa_w, {"ungraded"}).get("ungraded", 0) >= 100)
+
+print("== currency catch-all ==")
+check("currency CHF other", m.detect_currency("CHF 2,500.00"), "OTHER")
+check("currency trailing kr other", m.detect_currency("500 kr"), "OTHER")
+check("currency peso symbol other", m.detect_currency("₱5,000.00"), "OTHER")
+check("currency bare number stays None", m.detect_currency("90.00"), None)
+check("currency $ still USD", m.detect_currency("$1,234.00 to $2,000.00"), "USD")
+
+print("== sold probe: 1 query, 1 attempt, full scans only ==")
+_sv_fa = m.fetch_all
+_sold_kw = {}
+m.fetch_all = lambda d, w, **k: (_sold_kw.update(k), [])[1]
+_REAL["fetch_sold_sales"]("www.ebay.com", {"name": "w", "queries": ["a", "b", "c"]})
+ok("sold probe max_queries=1", _sold_kw.get("max_queries") == 1)
+ok("sold probe max_attempts=1 (no re-primes on the sign-in wall)", _sold_kw.get("max_attempts") == 1)
+m.fetch_all = _sv_fa
+_gdb = os.path.join(_TMPD, "ebay_test_gmp.db")
+m.DB_PATH = _gdb
+_gconn = m.db_connect()
+_sv_fss = m.fetch_sold_sales
+_fss_calls = []
+m.fetch_sold_sales = lambda d, w, **k: (_fss_calls.append(w["name"]), [])[1]
+_gm = _REAL["get_market_prices"](_gconn, "www.ebay.com", {"name": "G"}, {"psa10"}, allow_fetch=False)
+ok("priority pass (allow_fetch=False) never probes sold", _fss_calls == [] and _gm == {"psa10": None})
+_REAL["get_market_prices"](_gconn, "www.ebay.com", {"name": "G"}, {"psa10"})
+ok("full pass still probes sold", _fss_calls == ["G"])
+m.fetch_sold_sales = _sv_fss
+
+print("== prime_session is throttled ==")
+_sv_thr = m._throttle_request
+_thr_n = []
+m._throttle_request = lambda: _thr_n.append(1)
+class _FakeS:
+    def get(self, *a, **k):
+        return None
+m.prime_session("www.ebay.com", _FakeS())
+ok("prime_session goes through the global throttle", _thr_n == [1])
+m._throttle_request = _sv_thr
+
+print("== query_window (rotation) ==")
+_Q = ["A", "B", "C", "D"]
+check("fixed window (not opted in)", m.query_window(_Q, 2, None), ["A", "B"])
+check("rot 0", m.query_window(_Q, 2, 0), ["A", "B"])
+check("rot 1", m.query_window(_Q, 2, 1), ["A", "C"])
+check("rot 2", m.query_window(_Q, 2, 2), ["A", "D"])
+check("rot 3 wraps", m.query_window(_Q, 2, 3), ["A", "B"])
+check("under the cap -> all", m.query_window(["A", "B"], 2, 5), ["A", "B"])
+check("no cap -> all", m.query_window(_Q, None, 1), _Q)
+
+# ---- shared scan_once harness for the integration tests below ----
+_sv = {k: getattr(m, k) for k in ("fetch_all", "fetch_listings", "get_market_prices", "active_asking_reference",
+                                   "send_discord", "send_simple_discord", "get_session")}
+_sv_sleep = m.time.sleep
+m.time.sleep = lambda s: None          # fetch_all jitter / webhook pacing: no real waits in tests
+_X = []                                # (event, item_id, kwargs)
+_N = []                                # simple (health/notice) messages
+m.send_discord = lambda url, name, lst, grade, **k: _X.append((k.get("event", "new"), lst["item_id"], k))
+m.send_simple_discord = lambda url, title, text, color: _N.append((title, text))
+m.get_market_prices = lambda *a, **k: {}
+m.active_asking_reference = lambda *a, **k: {}
+
+def _db(tag):
+    p = os.path.join(_TMPD, f"ebay_test_{tag}.db")
+    if os.path.exists(p):
+        os.remove(p)
+    m.DB_PATH = p
+    c = m.db_connect()
+    m.meta_set(c, "ask_baseline_done", m.ASK_BASELINE_VERSION)
+    for _k in ("pa_baseline_done", "cgc10_baseline_done"):
+        m.meta_set(c, _k, "1")
+    m.meta_set(c, "health", "ok")
+    return c
+
+def _decoy(c, watch):
+    c.execute("INSERT INTO seen(watch,item_id,grade,first_seen,price,price_str,last_seen,below_alerted,price_alerted)"
+              " VALUES(?,'decoy','psa10','2026-01-01T00:00:00',9,'$9',?,0,0)",
+              (watch, m.datetime.now(m.timezone.utc).date().isoformat()))
+    c.commit()
+
+def _scan(cfg, c, fixtures=None, **kw):
+    if fixtures is not None:
+        m.fetch_all = lambda d, w, **k: [dict(x) for x in fixtures.get(w["name"], [])]
+    _X.clear(); _N.clear()
+    m.scan_once(cfg, c, **kw)
+    return list(_X)
+
+def _cfg(*watches, **top):
+    return {"discord_webhook_url": "https://discord.test/wh", "ebay_domain": "www.ebay.com",
+            "min_request_interval_seconds": 0, "watches": list(watches), **top}
+
+print("== one bad watch doesn't blind the rest (+ notice, baselines held) ==")
+_bc = _db("badwatch")
+m.meta_set(_bc, "pa_baseline_done", "")
+_bad = {"name": "BAD", "require": ["op05-119"], "grades": ["ungraded"], "min_price": "500",
+        "price_alerts": [{"grade": "ungraded", "below": 100, "mention": "1"}]}
+_good = {"name": "GOOD", "require": ["op05-119"], "grades": ["ungraded"]}
+_bcfg = _cfg(_bad, _good)
+for _w in ("BAD", "GOOD"):
+    _decoy(_bc, _w)
+_r = _scan(_bcfg, _bc, {"BAD": [L("b1", "$50.00", 50.0)], "GOOD": [L("g1", "$50.00", 50.0)]})
+ok("good watch after a bad one still alerts", any(x[1] == "g1" for x in _r))
+ok("watch error notice sent", any("Watch error" in t for t, _ in _N))
+ok("pa_baseline NOT retired while a watch errors", m.meta_get(_bc, "pa_baseline_done") != "1")
+_scan(_bcfg, _bc)
+ok("watch error notice not repeated", not any("Watch error" in t for t, _ in _N))
+_bad["min_price"] = 500
+_scan(_bcfg, _bc)
+ok("errors-cleared notice once fixed", any("cleared" in t for t, _ in _N))
+ok("pa_baseline retired once every watch ran", m.meta_get(_bc, "pa_baseline_done") == "1")
+
+print("== first real listing of a quiet watch alerts (seeded flag) ==")
+_qc = _db("quiet")
+_qw = {"name": "RARE", "require": ["020/141"], "grades": ["psa10"], "language": "any",
+       "price_alerts": [{"grade": "psa10", "below": 2700, "mention": "U"}]}
+_qcfg = _cfg(_qw)
+_noise = [L("z1", "$5.00", 5.0, title="Some other card 1/2")]
+for _i in range(3):
+    _scan(_qcfg, _qc, {"RARE": _noise})        # results, but nothing matches
+_r = _scan(_qcfg, _qc, {"RARE": _noise + [L("r1", "$2,400.00", 2400.0, title="Morty Ninetales 020/141 PSA 10")]})
+ok("first real listing after noise-only scans alerts with the @mention",
+   [(x[1], x[2].get("mention")) for x in _r] == [("r1", "U")])
+_bl = _db("blocked")
+_scan(_cfg(dict(_qw)), _bl, {"RARE": []})       # blocked first scan (0 results)
+ok("a blocked first scan doesn't use up the silent seed", m.meta_get(_bl, "seeded:RARE") != "1")
+
+print("== price-target edits re-baseline from stored prices (no ping flood) ==")
+_pc = _db("pasig")
+_pw = {"name": "MEW", "require": ["232/091"], "grades": ["psa10"], "language": "any"}
+_pcfg = _cfg(_pw)
+_old = [_PL("p0", 2400), _PL("p1", 2500), _PL("p2", 2600), _PL("p3", 3100)]
+_scan(_pcfg, _pc, {"MEW": _old})               # silent first-run seed, no rules yet
+_pw["price_alerts"] = [{"grade": "psa10", "below": 2700, "mention": "U"}]
+ok("adding a target doesn't ping listings already under it", _scan(_pcfg, _pc, {"MEW": _old}) == [])
+_pw["price_alerts"] = [{"grade": "psa10", "below": 3200, "mention": "U"}]
+ok("raising a target doesn't ping either", _scan(_pcfg, _pc, {"MEW": _old}) == [])
+_r = _scan(_pcfg, _pc, {"MEW": _old + [_PL("fresh", 2900)]})
+ok("a brand-new under-target listing still pings", [(x[1], x[2].get("mention")) for x in _r] == [("fresh", "U")])
+_pc.execute("UPDATE seen SET price=3300 WHERE item_id='p3'"); _pc.commit()
+_pw["price_alerts"] = [{"grade": "psa10", "below": 3250, "mention": "U"}]   # edit + real crossing, same pass
+_r = _scan(_pcfg, _pc, {"MEW": [_PL("p3", 3150)]})
+ok("a real crossing in the edit pass still pings once",
+   [(x[0], x[1], x[2].get("mention")) for x in _r] == [("price_alert", "p3", "U")])
+
+print("== prune tombstones: a resurfacing listing is restored, not re-alerted ==")
+_tc = _db("tomb")
+_tw = {"name": "GIR", "require": ["186/196"], "grades": ["psa10"], "language": "any",
+       "price_alerts": [{"grade": "psa10", "below": 3200, "mention": "U"}]}
+_tcfg = _cfg(_tw, prune_days=30)
+_GL = lambda i, p: {**_PL(i, p), "title": "PSA 10 Giratina V Alt Art 186/196 Lost Origin"}
+_scan(_tcfg, _tc, {"GIR": [_GL("old", 3500), _GL("same", 3400), _GL("keep", 3600)]})
+_40d = (m.datetime.now(m.timezone.utc) - m.timedelta(days=40)).date().isoformat()   # > prune_days, < tombstone expiry
+_tc.execute("UPDATE seen SET last_seen=? WHERE item_id IN ('old','same')", (_40d,)); _tc.commit()
+_scan(_tcfg, _tc, {"GIR": [_GL("keep", 3600)]})                     # prunes old + same into gone
+ok("pruned rows are tombstoned", _tc.execute("SELECT COUNT(*) FROM gone").fetchone()[0] == 2)
+ok("resurfacing at the same price: no 'new' alert",
+   _scan(_tcfg, _tc, {"GIR": [_GL("keep", 3600), _GL("same", 3400)]}) == [])
+_r = _scan(_tcfg, _tc, {"GIR": [_GL("keep", 3600), _GL("same", 3400), _GL("old", 3000)]})
+ok("resurfacing under target: one price_alert @mention",
+   [(x[0], x[1], x[2].get("mention")) for x in _r] == [("price_alert", "old", "U")])
+_ic = _db("idle")
+_iw = {"name": "IDLE", "require": ["999/999"], "grades": ["psa10"]}
+_decoy(_ic, "IDLE")
+_ic.execute("UPDATE seen SET last_seen='2026-01-01'"); _ic.commit()
+_scan(_cfg(_iw, prune_days=30), _ic, {"IDLE": []})
+ok("a watch that matched nothing keeps its rows (outage can't erase dedup)",
+   _ic.execute("SELECT COUNT(*) FROM seen WHERE watch='IDLE'").fetchone()[0] == 1)
+
+print("== reprice below min_price of a known copy alerts as a drop ==")
+_mc = _db("minp")
+_mw = {"name": "ST26", "require": ["st26-005"], "grades": ["ungraded"], "min_price": 300}
+_mcfg = _cfg(_mw)
+_decoy(_mc, "ST26")
+_ML = lambda p: L("s1", f"${p:.2f}", float(p), title="Luffy ST26-005 SP English")
+_scan(_mcfg, _mc, {"ST26": [_ML(350)]})
+_r = _scan(_mcfg, _mc, {"ST26": [_ML(250)]})
+ok("markdown below the floor alerts as a drop", [(x[0], x[1]) for x in _r] == [("drop", "s1")])
+ok("a NEW listing below the floor is still filtered",
+   _scan(_mcfg, _mc, {"ST26": [_ML(250), L("s2", "$200.00", 200.0, title="Luffy ST26-005 SP English")]}) == [])
+
+print("== asking reference uses only the alertable region; played copies aren't deals ==")
+m.active_asking_reference = _REAL["active_asking_reference"]
+_rc = _db("region")
+_rw = {"name": "REF", "require": ["st10-006"], "grades": ["ungraded"], "language": "any"}
+_decoy(_rc, "REF")
+_jp = [{**L(f"j{i}", "$300.00", 300.0, title="Luffy ST10-006 Dallas"), "location": "Japan"} for i in range(10)]
+_us = [L(f"u{i}", f"${550 + 10 * i}.00", 550.0 + 10 * i, title="Luffy ST10-006 Dallas") for i in range(8)]
+_scan(_cfg(_rw), _rc, {"REF": _jp + _us})      # all seen now
+_r = _scan(_cfg(_rw), _rc, {"REF": _jp + _us + [L("deal", "$450.00", 450.0, title="Luffy ST10-006 Dallas")]})
+_d = [x for x in _r if x[1] == "deal"]
+_want = round(m._percentile([550.0 + 10 * i for i in range(8)] + [450.0], 25), 2)   # the new ask is in the pool too
+ok("reference = US/CA asks only (overseas item-only asks ignored)", _d and _d[0][2].get("market_price") == _want)
+ok("...so a real US deal is flagged", _d and _d[0][2].get("is_deal") is True)
+_r = _scan(_cfg(dict(_rw, reference_override={"ungraded": 100})), _rc,
+           {"REF": [L("hp1", "$60.00", 60.0, title="Luffy ST10-006 Dallas HP"),
+                    L("nm1", "$60.00", 60.0, title="Luffy ST10-006 Dallas NM")]})
+ok("played copy alerts but is not tagged a deal", [x[2].get("is_deal") for x in _r if x[1] == "hp1"] == [False])
+ok("clean copy at the same price is a deal", [x[2].get("is_deal") for x in _r if x[1] == "nm1"] == [True])
+m.active_asking_reference = lambda *a, **k: {}
+
+print("== query rotation + per-query silent baseline ==")
+m.fetch_all = _REAL["fetch_all"]
+_rotc = _db("rot")
+_ROTP = {"A": [], "B": [], "C": []}
+m.fetch_listings = lambda d, q, **k: [dict(x) for x in _ROTP.get(q, [])]
+_rotw = {"name": "ROT", "queries": ["A", "B", "C"], "rotate_queries": True, "require": ["232/091"],
+         "grades": ["psa10"], "language": "any"}
+_rotcfg = _cfg(_rotw, max_queries_per_watch=2)
+_decoy(_rotc, "ROT")                                          # existing watch -> migration: A,B already ran
+_ROTP["A"] = [_PL("a1", 3000)]
+_ROTP["B"] = [_PL("b1", 3000)]
+_ROTP["C"] = [_PL("c_old1", 3000), _PL("c_old2", 3100)]       # C's backlog: never fetched before
+m.meta_set(_rotc, "query_rot", "0")
+ok("rot 0 [A,B]: legacy window, existing listings are new", sorted(x[1] for x in _scan(_rotcfg, _rotc)) == ["a1", "b1"])
+ok("rot 1 [A,C]: C's first run seeds its backlog silently", _scan(_rotcfg, _rotc) == [])
+_ROTP["B"].append(_PL("b2", 3000))
+ok("rot 2 [A,B]: new on B alerts", [x[1] for x in _scan(_rotcfg, _rotc)] == ["b2"])
+_ROTP["C"].append(_PL("c_new", 3000))
+ok("rot 3 [A,C]: genuinely new on C now alerts", [x[1] for x in _scan(_rotcfg, _rotc)] == ["c_new"])
+_rot2 = _db("rot2")
+_rw2 = dict(_rotw, name="ROT2")
+_decoy(_rot2, "ROT2")
+_ROTP.update({"A": [], "B": [], "C": []})
+m.meta_set(_rot2, "query_rot", "1")
+_scan(_cfg(_rw2, max_queries_per_watch=2), _rot2)              # C's first run is BLOCKED ([])
+_ROTP["C"] = [_PL("cb1", 3000), _PL("cb2", 3000)]
+m.meta_set(_rot2, "query_rot", "1")
+ok("a blocked first run keeps the query fresh (backlog still seeds silently)",
+   _scan(_cfg(_rw2, max_queries_per_watch=2), _rot2) == [])
+_fx = _db("fixed")
+_fw = {"name": "FIX", "queries": ["A", "B", "C"], "require": ["232/091"], "grades": ["psa10"], "language": "any"}
+_decoy(_fx, "FIX")
+_ROTP.update({"A": [], "B": [], "C": [_PL("never", 3000)]})
+for _i in range(3):
+    _scan(_cfg(_fw, max_queries_per_watch=2), _fx)
+ok("a watch without rotate_queries keeps the fixed window (C never searched)",
+   _fx.execute("SELECT COUNT(*) FROM seen WHERE item_id='never'").fetchone()[0] == 0)
+_ROTP.update({"A": [_PL("x_new", 3000)], "B": []})
+_fw2 = dict(_fw, queries=["C", "A", "B"])                       # config reorder promotes C
+ok("reordering queries seeds the promoted query's backlog, alerts only the truly new",
+   [x[1] for x in _scan(_cfg(_fw2, max_queries_per_watch=2), _fx)] == ["x_new"])
+
+_ne = _db("notify")
+_ROTP.update({"A": [_PL("ne1", 3000)], "B": [_PL("ne2", 3000)], "C": []})
+ok("--notify-existing still alerts a brand-new watch's existing listings",
+   sorted(x[1] for x in _scan(_cfg(dict(_fw, name="NE"), max_queries_per_watch=2), _ne, notify_existing=True))
+   == ["ne1", "ne2"])
+_ROTP["A"].append(_PL("ne3", 3000))
+ok("...and its next genuinely new listing alerts too",
+   [x[1] for x in _scan(_cfg(dict(_fw, name="NE"), max_queries_per_watch=2), _ne)] == ["ne3"])
+
+print("== off-query (soft-block) pages -> HEALTH DOWN on the first scan ==")
+m.fetch_all = _REAL["fetch_all"]
+m.fetch_listings = _REAL["fetch_listings"]
+def _junk_page():
+    lis = "".join(f'<li class="s-card"><a href="https://www.ebay.com/itm/{900000000000 + i}">'
+                  f'<span class="s-card__title">Plants vs Zombies comic book issue {i}</span></a>'
+                  f'<span class="s-card__price">$5.00</span><span>Located in United States</span></li>'
+                  for i in range(20))
+    return "<html><body><ul>" + lis + "</ul>" + ("x" * 70000) + "</body></html>"
+class _JunkResp:
+    status_code = 200
+    text = _junk_page()
+class _JunkSession:
+    def get(self, *a, **k):
+        return _JunkResp()
+m.get_session = lambda d: _JunkSession()
+_hc = _db("degraded")
+_hws = [{"name": f"H{i}", "queries": [q], "require": [q.split()[0]], "grades": ["ungraded"]}
+        for i, q in enumerate(["giratina 186/196", "rayquaza 194/203", "espeon 196", "lugia 9/111"])]
+for _w in _hws:
+    _decoy(_hc, _w["name"])
+m.meta_set(_hc, "qdone:H0", "[]")        # H0's query has never run (not the migrated legacy window)
+_scan(_cfg(*_hws), _hc)
+ok("all-off-query scan -> HEALTH DOWN immediately", m.meta_get(_hc, "health") == "down")
+ok("...and names the soft-block, not the filters", any("unrelated" in t for _, t in _N))
+ok("off-query pages don't mark a query as run", m.meta_get(_hc, "qdone:H0") == "[]")
+
+print("== validate_config catches silent misconfigurations ==")
+_vw = lambda **k: {"scan_workers": 1, "watches": [{"name": "V", "queries": ["q"], "require": ["x"], "grades": ["ungraded"], **k}]}
+_vc = lambda **k: " | ".join(m.validate_config(_vw(**k)))
+ok("unknown language warned", "NO language filter" in _vc(language="englsh"))
+ok("trailing-space language warned", "NO language filter" in _vc(language="English "))
+ok("CJK-only require clause warned", "normalizes to ''" in _vc(require=["ゼニガメ"]))
+ok("typo'd key warned", "unknown key 'exlude'" in _vc(exlude=["x"]))
+ok("string min_price warned", "must be a number" in _vc(min_price="500"))
+ok("exclude that kills the require warned", "contains an exclude term" in _vc(require=["dark dragonair"], exclude=["dark"]))
+ok("price target under min_price warned",
+   "can never fire" in _vc(min_price=500, price_alerts=[{"grade": "ungraded", "below": 400, "mention": "1"}]))
+ok("missing name warned", any("missing 'name'" in w for w in m.validate_config(
+    {"watches": [{"queries": ["q"], "require": ["x"], "grades": ["ungraded"]}]})))
+ok("bad top-level number warned", any("top-level" in w for w in m.validate_config(
+    {"scan_workers": 1, "price_drop_pct": "5%", "watches": [{"name": "V", "queries": ["q"], "require": ["x"], "grades": ["ungraded"]}]})))
+ok("clean watch -> no warnings", m.validate_config(_vw()) == [])
+
+for _k, _v in _sv.items():
+    setattr(m, _k, _v)
+m.time.sleep = _sv_sleep
+
+print("== watchdog: cancelled/queued runs can't mask a crash or a stall ==")
+import importlib.util as _ilu
+_spec = _ilu.spec_from_file_location("watchdog", os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), ".github", "watchdog.py"))
+_wd = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_wd)
+_wd.DB = os.path.join(_TMPD, "no_such.db")
+_wd_msgs = []
+_wd.discord = lambda msg: _wd_msgs.append(msg)
+def _ago(h):
+    return (m.datetime.now(m.timezone.utc) - m.timedelta(hours=h)).strftime("%Y-%m-%dT%H:%M:%SZ")
+def _wdrun(runs):
+    _wd.recent_runs = lambda: runs
+    _wd_msgs.clear(); _wd.main(); return " ".join(_wd_msgs)
+ok("failure behind a newer cancelled run is caught", "FAILED" in _wdrun([
+    {"createdAt": _ago(0.1), "startedAt": _ago(0.1), "status": "queued", "conclusion": ""},
+    {"createdAt": _ago(0.5), "startedAt": _ago(0.5), "status": "completed", "conclusion": "cancelled"},
+    {"createdAt": _ago(1.0), "startedAt": _ago(1.0), "status": "completed", "conclusion": "failure"}]))
+ok("a queued run that never starts doesn't count as alive", "No monitor run has been active" in _wdrun([
+    {"createdAt": _ago(0.2), "startedAt": _ago(0.2), "status": "queued", "conclusion": ""},
+    {"createdAt": _ago(8), "startedAt": _ago(8), "status": "completed", "conclusion": "success"}]))
+ok("a long in-progress run is not stale", _wdrun([
+    {"createdAt": _ago(5.5), "startedAt": _ago(5.5), "status": "in_progress", "conclusion": ""}]) == "")
+ok("a run that waited in the queue then ran is judged by when it ENDED (no false stale)", _wdrun([
+    {"createdAt": _ago(7), "startedAt": _ago(7), "updatedAt": _ago(0.1), "status": "completed",
+     "conclusion": "success"}]) == "")
+ok("a job that hit timeout-minutes (reported 'cancelled') is flagged as hung", "job timeout" in _wdrun([
+    {"createdAt": _ago(5), "startedAt": _ago(5), "updatedAt": _ago(0.8), "status": "completed",
+     "conclusion": "cancelled"}]))
+ok("healthy -> no alert", _wdrun([
+    {"createdAt": _ago(0.3), "startedAt": _ago(0.3), "status": "in_progress", "conclusion": ""},
+    {"createdAt": _ago(4), "startedAt": _ago(4), "status": "completed", "conclusion": "success"}]) == "")
+
+# ==========================================================================
+# Runner geography (HEALTH DOWN from a mexicocentral runner) + critic fixes
+# ==========================================================================
+_sv2 = {k: getattr(m, k) for k in ("fetch_all", "get_market_prices", "active_asking_reference",
+                                    "send_discord", "send_simple_discord")}
+_sv2_sleep = m.time.sleep
+m.time.sleep = lambda s: None
+_X2, _N2 = [], []
+m.send_discord = lambda url, name, lst, grade, **k: _X2.append((k.get("event", "new"), lst["item_id"], k))
+m.send_simple_discord = lambda url, title, text, color: _N2.append((title, text))
+m.get_market_prices = lambda *a, **k: {}
+m.active_asking_reference = lambda *a, **k: {}
+
+def _db2(tag, ask="2"):
+    p = os.path.join(_TMPD, f"ebay_test2_{tag}.db")
+    if os.path.exists(p):
+        os.remove(p)
+    m.DB_PATH = p
+    c = m.db_connect()
+    m.meta_set(c, "ask_baseline_done", ask)
+    m.meta_set(c, "pa_baseline_done", "1"); m.meta_set(c, "cgc10_baseline_done", "1")
+    m.meta_set(c, "health", "ok")
+    return c
+
+def _scan2(cfg, c, fixtures, **kw):
+    m.fetch_all = lambda d, w, **k: [dict(x) for x in fixtures.get(w["name"], [])]
+    _X2.clear(); _N2.clear()
+    m.scan_once(cfg, c, **kw)
+    return list(_X2)
+
+def _cfg2(*watches, **top):
+    return {"discord_webhook_url": "https://discord.test/wh", "ebay_domain": "www.ebay.com",
+            "min_request_interval_seconds": 0, "watches": list(watches), **top}
+
+print("== a persistently failing watch can't hold the ask re-baseline open for everyone ==")
+_ac = _db2("askbl", ask="1")                     # production state before the v2 bump
+_abad = {"name": "BAD", "require": ["op05-119"], "grades": ["ungraded"], "min_price": "50"}
+_agood = {"name": "GOOD", "require": ["op05-119"], "grades": ["ungraded"],
+          "reference_override": {"ungraded": 90}}
+_acfg = _cfg2(_abad, _agood)
+_afx = {"BAD": [L("b1", "$60.00", 60.0)], "GOOD": [L("g1", "$85.00", 85.0)]}
+_scan2(_acfg, _ac, _afx)                          # BAD raises; GOOD seeds g1 (85 vs 90: not a deal) + baselines
+ok("the bad watch really errors", any("Watch error" in t for t, _ in _N2))
+_agood["reference_override"] = {"ungraded": 100}  # same price, reference moves: 85 < 90 = a real crossing
+_r = _scan2(_acfg, _ac, _afx)
+ok("healthy watch still gets below-market pings while another watch errors",
+   [(x[0], x[1]) for x in _r] == [("below_market", "g1")])
+ok("global ask baseline stays pending while the bad watch errors", m.meta_get(_ac, "ask_baseline_done") == "1")
+ok("...but GOOD's own baseline is done", m.meta_get(_ac, "ask_bl:GOOD") == m.ASK_BASELINE_VERSION)
+
+print("== changing a watch's matching rules seeds the newly matching backlog silently ==")
+_fc = _db2("fltsig")
+_fw = {"name": "FLT", "require": ["op05-119"], "grades": ["ungraded"]}
+_fcfg = _cfg2(_fw)
+_decoy_t = L("d0", "$10.00", 10.0)
+_scan2(_fcfg, _fc, {"FLT": [_decoy_t]})                           # first run: seeds, records the signature
+_old_backlog = L("bk1", "$60.00", 60.0, title="Monkey D Luffy #119 Awakening of the New Era Manga")
+ok("a listing the old rules don't match is not alerted", _scan2(_fcfg, _fc, {"FLT": [_decoy_t, _old_backlog]}) == [])
+_fw.pop("require"); _fw["match_any"] = [["op05-119"], ["luffy", "119", "awakening of the new era"]]
+ok("broadened rules: the already-listed backlog is seeded silently",
+   _scan2(_fcfg, _fc, {"FLT": [_decoy_t, _old_backlog]}) == [])
+_new_one = L("nw1", "$70.00", 70.0, title="Luffy 119 Awakening of the New Era Manga Alt Art")
+ok("...and the next genuinely new listing alerts",
+   [x[1] for x in _scan2(_fcfg, _fc, {"FLT": [_decoy_t, _old_backlog, _new_one]})] == ["nw1"])
+_mc2 = _db2("fltmig")
+_mw2 = {"name": "MIG", "require": ["op05-119"], "grades": ["ungraded"]}
+_mc2.execute("INSERT INTO seen(watch,item_id,grade,first_seen,price,price_str,last_seen,below_alerted,price_alerted)"
+             " VALUES('MIG','old','ungraded','2026-01-01T00:00:00',9,'$9','2026-09-01',0,0)"); _mc2.commit()
+ok("first deploy (no stored signature) just records it: new listings still alert",
+   [x[1] for x in _scan2(_cfg2(_mw2), _mc2, {"MIG": [L("m1", "$50.00", 50.0)]})] == ["m1"])
+
+print("== a zero-match scan says WHY (runner geography vs filters) ==")
+_gc = _db2("geo")
+_gws = [{"name": f"G{i}", "require": ["op05-119"], "grades": ["ungraded"]} for i in range(3)]
+_mx = {f"G{i}": [{**L(f"x{i}{j}", "MXN $1,000.00", 1000.0), "location": "Mexico", "currency": "MXN"}
+                 for j in range(5)] for i in range(3)}
+for _i in range(3):
+    _scan2(_cfg2(*_gws), _gc, _mx)
+_down = [t for tt, t in _N2 if "health" in tt.lower()]
+ok("HEALTH DOWN after 3 zero-match scans", m.meta_get(_gc, "health") == "down" and _down)
+ok("...and the alert names the region gate + the foreign locations/currency",
+   _down and "region:OTHER 15" in _down[0] and "Mexico" in _down[0] and "MXN" in _down[0])
+ok("LAST_SCAN marks the full scan broken", m.LAST_SCAN.get("broken") is True)
+_scan2(_cfg2(*_gws), _gc, {"G0": [L("ok1", "$50.00", 50.0)]})
+ok("a matching scan clears the broken verdict", m.LAST_SCAN.get("broken") is False)
+
+print("== runner egress check ==")
+class _TR:
+    def __init__(self, t): self.text = t
+_sv_get = m.requests.get
+m.requests.get = lambda *a, **k: _TR("fl=1\nip=1.2.3.4\nloc=MX\ntls=TLSv1.3\n")
+check("egress country parsed from Cloudflare trace", m.egress_country(), "MX")
+def _boom(*a, **k):
+    raise m.requests.ConnectionError("offline")
+m.requests.get = _boom
+check("egress check failure -> unknown (never blocks scanning)", m.egress_country(), None)
+m.requests.get = _sv_get
+
+print("== CI loop rerolls onto a fresh runner (bounded) ==")
+_sv_main = {k: getattr(m, k) for k in ("load_config", "enable_file_logging", "validate_config",
+                                        "egress_country", "scan_once")}
+_sv_mono, _sv_argv = m.time.monotonic, sys.argv
+_clock = [1000.0]
+m.time.monotonic = lambda: _clock[0]
+m.time.sleep = lambda s: _clock.__setitem__(0, _clock[0] + s)
+m.enable_file_logging = lambda: None
+m.validate_config = lambda cfg: []
+m.load_config = lambda: {"poll_interval_seconds": 300, "priority_interval_seconds": 120, "watches": [
+    {"name": "P", "require": ["x"], "grades": ["ungraded"], "priority": True}]}
+_rdb = os.path.join(_TMPD, "ebay_test_reroll.db")
+if os.path.exists(_rdb):
+    os.remove(_rdb)
+m.DB_PATH = _rdb
+_scans = []
+def _fake_scan(cfg, conn, broken=False, **k):
+    _scans.append(k.get("full_scan", True))
+    _clock[0] += 60
+    if k.get("full_scan", True):
+        m.LAST_SCAN.update(broken=_BROKEN[0], scraped=100, matched=0 if _BROKEN[0] else 5, diag="d")
+    return 0
+_BROKEN = [False]
+m.scan_once = _fake_scan
+def _run_main(egress):
+    m.egress_country = lambda: egress
+    sys.argv = ["ebay_monitor.py", "--loop-for-minutes", "30", "--reroll-exit"]
+    _scans.clear()
+    try:
+        m.main()
+        return 0
+    except SystemExit as e:
+        return e.code
+def _streak():
+    _c = m.db_connect()
+    return json.loads(m.meta_get(_c, "reroll_state", "") or "{}").get("streak", 0)
+check("non-US egress -> exit 75 before scanning", (_run_main("MX"), len(_scans)), (75, 0))
+check("...and the reroll is recorded", _streak(), 1)
+_run_main("MX"); _run_main("MX")
+check("budget exhausted after 3 rerolls -> scans anyway (no endless requeue)", (_run_main("MX"), _scans[:1]), (0, [True]))
+_BROKEN[0] = False
+_run_main("US")
+check("a healthy full scan resets the reroll budget", _streak(), 0)
+_BROKEN[0] = True
+_code = _run_main("US")
+check("US egress but 2 consecutive broken full scans -> exit 75", (_code, _scans.count(True)), (75, 2))
+_BROKEN[0] = False
+check("unknown egress (check failed) scans normally", _run_main(None), 0)
+for _k, _v in _sv_main.items():
+    setattr(m, _k, _v)
+m.time.monotonic, sys.argv = _sv_mono, _sv_argv
+m.time.sleep = lambda s: None
+
+print("== market notice tells the truth (deals fall back to asking prices) ==")
+_nc = _db2("notice")
+m.meta_set(_nc, "market_circuit", json.dumps({"fails": 3, "until": (m.datetime.now(m.timezone.utc)
+                                                                     + m.timedelta(hours=5)).isoformat()}))
+m.meta_set(_nc, "market_notice", "sent")         # a user who already got the old wording
+_nw = {"name": "N", "require": ["op05-119"], "grades": ["ungraded"]}
+_scan2(_cfg2(_nw), _nc, {"N": [L("n1", "$50.00", 50.0)]})
+ok("old 'paused' notice is corrected once", [t for t, _ in _N2 if "Sold comps" in t] == ["ℹ️ Sold comps unavailable — deals use asking prices"])
+_scan2(_cfg2(_nw), _nc, {"N": [L("n1", "$50.00", 50.0)]})
+ok("...and not repeated", not any("Sold comps" in t for t, _ in _N2))
+
+for _k, _v in _sv2.items():
+    setattr(m, _k, _v)
+m.time.sleep = _sv2_sleep
+
+# ==========================================================================
+# Diff-review fixes: blind scans can't use up one-time baselines, etc.
+# ==========================================================================
+print("== gold labels / raw wordings / plush ==")
+check("BGS Gold Pristine 10 -> bgs10", m.classify_grade("Luffy ST26-005 SP OP15 BGS Gold Pristine 10"), "bgs10")
+check("BGS Gold Label 9.5 -> bgs9.5", m.classify_grade("Luffy ST26-005 SP BGS Gold Label 9.5"), "bgs9.5")
+check("CGC Gold Label Pristine 10 -> cgc10", m.classify_grade("Mew ex CGC Gold Label Pristine 10"), "cgc10")
+check("BGS Gold Label 10 candidate -> ungraded", m.classify_grade("Mew ex raw BGS Gold Label 10 candidate"), "ungraded")
+check("Gold Star BGS 9 stays other_graded", m.classify_grade("Rayquaza Gold Star BGS 9"), "other_graded")
+for _t in ("Giratina V 186/196 NM Non Graded", "Charizard Not Yet Graded", "Charizard Pre Graded",
+           "Worth Getting Graded", "Charizard Not Professionally Graded", "Mew ex Raw Gem Mint 10/10",
+           "Giratina Holo Rare Gem Mint 10/127", "Charizard Gem Mint 10 centering"):
+    check(f"raw wording stays ungraded: {_t[-26:]}", m.classify_grade(_t), "ungraded")
+check("'Professionally Graded 9 Mint' is still a slab", m.classify_grade("Charizard Professionally Graded 9 Mint"),
+      "other_graded")
+ok("'plus hard case' is not a plush", m.matches_filters(
+    "Rayquaza V Alt Art 194/203 Evolving Skies NM - penny sleeve plus hard case", ["rayquaza", "194/203"], []))
+ok("a plush toy is excluded", not m.matches_filters("Mew ex 232/091 Plush toy", ["232/091"], []))
+ok("a plushie is excluded", not m.matches_filters("Mew 232/091 plushie", ["232/091"], []))
+
+_sv3 = {k: getattr(m, k) for k in ("fetch_all", "fetch_listings", "get_market_prices", "active_asking_reference",
+                                    "send_discord", "send_simple_discord", "get_session")}
+_sv3_sleep = m.time.sleep
+m.time.sleep = lambda s: None
+_X3, _N3 = [], []
+m.send_discord = lambda url, name, lst, grade, **k: _X3.append((k.get("event", "new"), lst["item_id"], k))
+m.send_simple_discord = lambda url, title, text, color: _N3.append((title, text))
+m.get_market_prices = lambda *a, **k: {}
+m.active_asking_reference = lambda *a, **k: {}
+
+def _db3(tag, **meta):
+    p = os.path.join(_TMPD, f"ebay_test3_{tag}.db")
+    if os.path.exists(p):
+        os.remove(p)
+    m.DB_PATH = p
+    c = m.db_connect()
+    base = {"ask_baseline_done": m.ASK_BASELINE_VERSION, "pa_baseline_done": "1", "cgc10_baseline_done": "1",
+            "health": "ok"}
+    base.update(meta)
+    for k, v in base.items():
+        m.meta_set(c, k, v)
+    return c
+
+def _scan3(cfg, c, fixtures, **kw):
+    m.fetch_all = lambda d, w, **k: [dict(x) for x in fixtures.get(w["name"], [])]
+    _X3.clear(); _N3.clear()
+    m.scan_once(cfg, c, **kw)
+    return list(_X3)
+
+def _cfg3(*watches, **top):
+    return {"discord_webhook_url": "https://discord.test/wh", "ebay_domain": "www.ebay.com",
+            "min_request_interval_seconds": 0, "watches": list(watches), **top}
+
+def _mxify(lsts):
+    return [{**x, "location": "Mexico"} for x in lsts]
+
+print("== a blind (foreign-runner) scan can't use up one-time baselines ==")
+_W1 = {"name": "NEWW", "require": ["op05-119"], "grades": ["ungraded"]}
+_W2 = {"name": "OTHER", "require": ["st26-005"], "grades": ["ungraded"]}
+_backlog = [L(f"b{i}", "$50.00", 50.0) for i in range(6)]
+_other = [L(f"o{i}", "$60.00", 60.0, title="Luffy ST26-005 SP") for i in range(3)]
+_bc3 = _db3("blindseed")
+_scan3(_cfg3(_W1, _W2), _bc3, {"NEWW": _mxify(_backlog), "OTHER": _mxify(_other)})   # blind first scan
+ok("blind first scan leaves a new watch's first-run seed pending", m.meta_get(_bc3, "seeded:NEWW") != "1")
+ok("...so the first healthy scan seeds its backlog silently (no flood)",
+   _scan3(_cfg3(_W1, _W2), _bc3, {"NEWW": _backlog, "OTHER": _other}) == [])
+ok("...and later genuinely new listings alert",
+   [x[1] for x in _scan3(_cfg3(_W1, _W2), _bc3, {"NEWW": _backlog + [L("nn", "$55.00", 55.0)], "OTHER": _other})] == ["nn"])
+
+def _seen_row(c, watch, iid, price, grade="ungraded"):
+    c.execute("INSERT INTO seen(watch,item_id,grade,first_seen,price,price_str,last_seen,below_alerted,price_alerted)"
+              " VALUES(?,?,?,'2026-01-01T00:00:00',?,?,?,0,0)",
+              (watch, iid, grade, price, f"${price}", m.datetime.now(m.timezone.utc).date().isoformat()))
+    c.commit()
+
+_ab3 = _db3("blindask", ask_baseline_done="1")      # a DB that predates the v2 re-baseline
+_A1 = {"name": "A1", "require": ["op05-119"], "grades": ["ungraded"], "reference_override": {"ungraded": 100}}
+_A2 = {"name": "A2", "require": ["st26-005"], "grades": ["ungraded"]}
+_seen_row(_ab3, "A1", "a1", 85.0)                   # 85 vs ref 100: a v2 "below asking" on an OLD listing
+for _o in _other:
+    _seen_row(_ab3, "A2", _o["item_id"], 60.0)
+_afx3 = {"A1": [L("a1", "$85.00", 85.0)], "A2": _other}
+_scan3(_cfg3(_A1, _A2), _ab3, {"A1": _mxify(_afx3["A1"]), "A2": _mxify(_other)})   # blind first deploy scan
+ok("a blind scan doesn't retire the ask re-baseline", m.meta_get(_ab3, "ask_baseline_done") == "1")
+ok("...so the first healthy scan records old crossings silently (no below-market flood)",
+   _scan3(_cfg3(_A1, _A2), _ab3, _afx3) == [])
+ok("...and then the global baseline retires", m.meta_get(_ab3, "ask_baseline_done") == m.ASK_BASELINE_VERSION)
+
+print("== the ask re-baseline can't retire while one watch saw nothing ==")
+_ae3 = _db3("askempty", ask_baseline_done="1")
+_E1 = {"name": "E1", "require": ["op05-119"], "grades": ["ungraded"], "reference_override": {"ungraded": 90}}
+_E2 = {"name": "E2", "require": ["st26-005"], "grades": ["ungraded"], "reference_override": {"ungraded": 70}}
+_seen_row(_ae3, "E1", "e1", 85.0)
+_seen_row(_ae3, "E2", "e2", 60.0)
+_scan3(_cfg3(_E1, _E2), _ae3, {"E1": [L("e1", "$85.00", 85.0)], "E2": []})    # E2's searches came back empty
+ok("global stays pending while E2 is unbaselined", m.meta_get(_ae3, "ask_baseline_done") == "1")
+_E2["reference_override"] = {"ungraded": 100}
+ok("E2's first real pass baselines silently (its old $60 under the new $100 ref doesn't ping)",
+   _scan3(_cfg3(_E1, _E2), _ae3, {"E1": [L("e1", "$85.00", 85.0)],
+                                   "E2": [L("e2", "$60.00", 60.0, title="Luffy ST26-005 SP")]}) == [])
+
+print("== a top-level matching edit is a rules edit too (flt_sig uses effective values) ==")
+_tl = _db3("toplevel")
+_TW = {"name": "TL", "require": ["op05-119"], "grades": ["ungraded"]}
+_auc = [{**L(f"au{i}", "$40.00", 40.0), "bids": "3 bids"} for i in range(4)]
+_scan3(_cfg3(_TW), _tl, {"TL": [L("t0", "$50.00", 50.0)] + _auc})
+_scan3(_cfg3(_TW), _tl, {"TL": [L("t0", "$50.00", 50.0)] + _auc})
+ok("turning on top-level include_auctions seeds the auction backlog silently",
+   _scan3(_cfg3(_TW, include_auctions=True), _tl, {"TL": [L("t0", "$50.00", 50.0)] + _auc}) == [])
+
+print("== an empty-but-real fresh page marks its query as run ==")
+m.fetch_all = _REAL["fetch_all"]
+_PAGES = {}
+def _fl_pages(d, q, **k):
+    r = m._Results([dict(x) for x in _PAGES.get(q, [])])
+    r.page_ok = q in _PAGES
+    return r
+m.fetch_listings = _fl_pages
+_ec = _db3("emptyq")
+_EQ = {"name": "EQ", "queries": ["A", "B", "C"], "rotate_queries": True, "require": ["232/091"],
+       "grades": ["psa10"], "language": "any"}
+_decoy(_ec, "EQ")
+_PAGES.update({"A": [_PL("x1", 3000)], "B": [], "C": []})       # C is a real results page with 0 items
+m.meta_set(_ec, "query_rot", "1")
+_X3.clear(); m.scan_once(_cfg3(_EQ, max_queries_per_watch=2), _ec)       # window [A, C]
+ok("C recorded as run although it returned nothing", "C" in json.loads(m.meta_get(_ec, "qdone:EQ") or "[]"))
+_PAGES["C"] = [_PL("c_first", 3000)]
+m.meta_set(_ec, "query_rot", "1")
+_X3.clear(); m.scan_once(_cfg3(_EQ, max_queries_per_watch=2), _ec)
+ok("...so the first listing C finds alerts (not silently seeded)", "c_first" in [x[1] for x in _X3])
+_PAGES.clear(); _PAGES.update({"A": [], "C": []})               # EVERY page blank: layout break
+_eb = _db3("emptyall")
+_decoy(_eb, "EQ")
+m.meta_set(_eb, "query_rot", "1")
+_X3.clear(); m.scan_once(_cfg3(_EQ, max_queries_per_watch=2), _eb)
+ok("a fetch where every page is blank credits no query", "C" not in json.loads(m.meta_get(_eb, "qdone:EQ") or "[]"))
+m.fetch_listings = _sv3["fetch_listings"]
+
+print("== an all-watches-errored scan blames the config, not eBay ==")
+_ec2 = _db3("allerr")
+_bw = [{"name": f"BW{i}", "require": ["op05-119"], "grades": ["ungraded"], "price_drop_pct": "5%"} for i in range(2)]
+_scan3(_cfg3(*_bw), _ec2, {"BW0": [L("z", "$5.00", 5.0)], "BW1": [L("y", "$5.00", 5.0)]})
+ok("not judged a broken (reroll-worthy) scan", m.LAST_SCAN.get("broken") is False and m.LAST_SCAN.get("errored"))
+ok("no HEALTH DOWN blaming eBay", m.meta_get(_ec2, "health") == "ok" and not any("health" in t.lower() for t, _ in _N3))
+ok("the watch-error notice still goes out", any("Watch error" in t for t, _ in _N3))
+
+print("== validate_config never raises on malformed values ==")
+for _bad in ({"exclude": 5}, {"match_any": True}, {"queries": 5}, {"grades": [10]},
+             {"price_alerts": [{"below": 500, "grade": 10}]}, {"allowed_regions": [1]}):
+    try:
+        _w = m.validate_config({"scan_workers": 1, "max_queries_per_watch": 2, "watches": [
+            {"name": "V", "queries": ["q"], "require": ["x"], "grades": ["ungraded"], **_bad}]})
+        ok(f"no crash on {_bad}", True)
+    except Exception as _e:
+        ok(f"no crash on {_bad} (raised {_e!r})", False)
+ok("rotate_queries with a cap of 1 is flagged", any("rotate_queries needs" in w for w in m.validate_config(
+    {"scan_workers": 1, "max_queries_per_watch": 1, "watches": [
+        {"name": "R", "queries": ["a", "b"], "require": ["x"], "grades": ["ungraded"], "rotate_queries": True}]})))
+ok("a non-object watch is reported as ignored", any("ignored" in w for w in m.validate_config(
+    {"scan_workers": 1, "watches": ["oops", {"name": "V", "queries": ["q"], "require": ["x"], "grades": ["ungraded"]}]})))
+
+print("== tombstoned rows follow a price-target edit ==")
+_tg = _db3("tombpa")
+_tg.execute("INSERT INTO gone(watch,item_id,grade,first_seen,price,price_str,last_seen,below_alerted,price_alerted)"
+            " VALUES('TP','g1','psa10','2026-01-01',3000,'$3,000','2026-08-01',0,0)"); _tg.commit()
+_decoy(_tg, "TP")
+_TPW = {"name": "TP", "require": ["232/091"], "grades": ["psa10"], "language": "any",
+        "price_alerts": [{"grade": "psa10", "below": 3200, "mention": "U"}]}
+_scan3(_cfg3(_TPW), _tg, {"TP": [_PL("other", 5000)]})
+ok("a gone row under the new target is flagged, so it can't ping on resurfacing",
+   _tg.execute("SELECT price_alerted FROM gone WHERE item_id='g1'").fetchone()[0] == 1)
+
+for _k, _v in _sv3.items():
+    setattr(m, _k, _v)
+m.time.sleep = _sv3_sleep
 
 print("\n==== RESULT ====")
 if fails:

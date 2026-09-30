@@ -54,10 +54,13 @@
         "luffy st10-006 dallas promo gear 5"
       ],
       "require": ["luffy", "one piece day", "dallas"],
+      "exclude": ["zoro", "promo pack luffy"],
+      "_exclude_note": "The Dallas promo was handed out in a sealed Luffy/Zoro/Uta pack: 'zoro' drops the sealed '[SEALED] ... Promo Pack (Luffy, Zoro, Uta DON!)' packs and 'Luffy & Zoro PSA 10 Sequential' two-slab sets (both fired false 'new' alerts); 'promo pack luffy' catches a Zoro-less pack title. Bare 'promo pack' is avoided: a raw single titled '...Dallas Promo Pack Fresh' would be dropped.",
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': it's an English US-event exclusive (no Japanese 'One Piece Day Dallas' print exists), so the event descriptor gates it; 'english' would risk dropping a listing that mentions 'Japanese' in a comparison.",
       "language": "any",
-      "min_price": null,
+      "_min_price_note": "$100 floor: the cheapest genuine raw copy seen is ~$372, while event merch (figures, keychains, display cases) that names Luffy + One Piece Day Dallas sells for $10-50.",
+      "min_price": 100,
       "max_price": null
     },
     {
@@ -221,6 +224,8 @@
         "ガーディ vending series 3 グロース"
       ],
       "require": ["growlithe", "vending", ["series 3", "series iii", "58"]],
+      "exclude": ["sticker"],
+      "_exclude_note": "'sticker': the 2000 'Vintage Vending Machine Prism Sticker' Growlithe #058 is a different product (it fired a false alert); a slab title can mention a 'PSA sticker', so this stays per-watch, not global.",
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only Vending card (no English print), so growlithe + vending + series 3 already gate identity; _norm strips CJK, matching rides on the Latin tokens sellers include, and 'any' keeps the many CJK/Japanese-tagged listings that 'english' would drop.",
       "language": "any",
@@ -399,7 +404,7 @@
       "require": ["light arcanine", ["059", "no.59", "no. 59", "#59", "darkness and to light", "darkness, and to light", "darkness & to light", "neo 4"]],
       "exclude": ["12/105"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'any': Japan-only Neo Destiny print (the English Light Arcanine is 26/105, excluded by the '059' anchor + the 26/105 exclude); _norm strips CJK so matching rides on 'light arcanine' + '059', and 'any' keeps terse listings a 'japanese' filter would drop.",
+      "_language_note": "language 'any': Japan-only Neo Destiny print (the English Light Arcanine is 12/105, excluded by the '059' anchor + the 12/105 exclude); _norm strips CJK so matching rides on 'light arcanine' + '059', and 'any' keeps terse listings a 'japanese' filter would drop.",
       "language": "any",
       "min_price": null,
       "max_price": null
@@ -576,6 +581,8 @@
         "pokemon japanese red green gift set articuno holo"
       ],
       "require": ["articuno", ["red green", "red/green", "gift set", "quick starter"]],
+      "exclude": ["zapdos", "moltres"],
+      "_exclude_note": "Sibling excludes: 'Articuno 144 Zapdos 145 Moltres 146 ... Gift Set PSA 10' is the 3-card set (a $25k 'new PSA 10' false alert); is_lot misses it because the titles carry no '/denominator' numbers.",
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only 1998 gift-set product; _norm strips CJK so matching rides on 'articuno' + the gift-set name, and 'any' keeps terse listings a 'japanese' filter would drop.",
       "language": "any",

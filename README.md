@@ -75,21 +75,39 @@ of whether any local machine is on:
 
 - **Repo:** https://github.com/cal-chan-cloud/ebay-listing-monitor (public)
 - **Schedule / cadence:** `.github/workflows/monitor.yml` is triggered by cron, but
-  GitHub throttles scheduled cron hard (measured ~80 min median between fires, not the
-  5 min requested). So each triggered job **loops for ~50 minutes**, scanning every
-  ~3 min (`poll_interval_seconds`, via `--loop-for-minutes 50`), then exits so the
-  updated `seen.db` is committed once. Net effect: ~3-min notification granularity
-  while a job is running, with ~30-min gaps between jobs. For true near-zero delay,
-  run the loop on an always-on host instead (see "Local setup"). Scans fetch all
-  watches concurrently (`scan_workers`, default 6), so a full pass takes ~15-20s.
+  GitHub throttles scheduled cron hard (fires land every ~2-7 h, median ~3.9 h in
+  September, not the 5 min requested). So each triggered job **loops in two ~105-minute segments**
+  (`--loop-for-minutes 105`, `seen.db` committed after each), and the next cron fire
+  queues behind the running job, so coverage is near-continuous rather than ~50 min
+  per ~2.5 h. While a job runs, a full scan of every watch starts roughly every 10-12 min:
+  `poll_interval_seconds` (300) is the minimum time from the END of one full scan to
+  the start of the next, checked on priority ticks, so the real period is about
+  full-scan time + 360s + two priority passes. Scans are serial (`scan_workers`: 1) behind a 2s global
+  request throttle (`min_request_interval_seconds`), so a full pass of ~60 searches
+  takes ~2-4 min; each loop prints its measured cadence when it finishes. A pushed
+  config/code change goes live at the next segment boundary. For true near-zero delay,
+  run the loop on an always-on host instead (see "Local setup").
 - **Fast tier:** between full passes, the loop rescans only the **priority** watches
   (those with `price_alerts`, or an explicit `"priority": true`) every
-  `priority_interval_seconds` (default 30). This cuts detection of under-target deals to
-  ~30s for those watches while the rest stay at `poll_interval_seconds` — concentrating
+  `priority_interval_seconds` (120 in config.json; the tier is off if the key is absent),
+  so those watches are rescanned about every 2-3 min while the rest wait for the next
+  full scan — concentrating
   the extra scraping on the few watches that matter keeps the eBay soft-block risk low.
   Set `priority_interval_seconds` to `0` to disable it. (Note: truly-underpriced cards can
   still sell within seconds to snipers — faster polling catches the 1-3-min deals, not the
   sub-minute ones, which only an instant-buy bot could win.)
+- **Runner geography:** eBay localizes search results by the visitor's IP, and GitHub
+  sometimes places the hosted runner outside the US (seen: Azure `mexicocentral`). eBay
+  then serves a local-buyer page and the US/CA region gate matches nothing for that whole
+  job (the "N listings scraped but 0 matched" health alert; every US-region runner is fine).
+  So each segment runs with `--reroll-exit`: the monitor first asks Cloudflare's
+  `/cdn-cgi/trace` which country its egress IP is in, and if it isn't in `egress_countries`
+  (default `["US"]`), or two consecutive full scans come back broken, it exits with code 75
+  and the job requeues itself (`gh workflow run`), so the next run lands on a different
+  runner. At most 3 consecutive rerolls (budget resets after a healthy scan or 6h), so an
+  eBay outage or layout change can't cause an endless requeue loop. A zero-match scan
+  also logs, and puts in the health alert, which gate rejected the listings and where eBay
+  said they were located.
 - **Webhook:** stored as the encrypted GitHub Actions secret `DISCORD_WEBHOOK_URL`
   — it is **not** in the public code (`config.json`'s `discord_webhook_url` is left
   blank; the script reads the env var first).
@@ -98,7 +116,9 @@ of whether any local machine is on:
 
 Manage it:
 ```
-gh workflow run monitor.yml -R cal-chan-cloud/ebay-listing-monitor     # run now
+gh workflow run monitor.yml -R cal-chan-cloud/ebay-listing-monitor     # queue a run (waits behind a
+                                                                       # running job, up to ~3.6 h;
+                                                                       # cancel that job to start now)
 gh run list -R cal-chan-cloud/ebay-listing-monitor                     # recent runs
 gh secret set DISCORD_WEBHOOK_URL -R cal-chan-cloud/ebay-listing-monitor --body "<url>"
 ```
@@ -131,7 +151,7 @@ The change takes effect on the next scheduled run.
 ## Run
 
 ```
-python ebay_monitor.py            # run forever, checking every 5 min (config poll_interval_seconds)
+python ebay_monitor.py            # run forever, a full scan every poll_interval_seconds (no priority tier)
 python ebay_monitor.py --once     # one pass then exit  (use with Windows Task Scheduler)
 python ebay_monitor.py --dry-run  # scan + print matches, send nothing, record nothing
 ```
@@ -196,9 +216,22 @@ Add entries to the `watches` array in `config.json`:
 }
 ```
 
-- `queries` — a **list** of search phrasings, all searched and merged/deduped.
-  Broader/alternate wordings surface differently-titled listings of the same card;
-  the require/grade filters keep them precise. (`query`, a single string, still works.)
+- `queries` — a **list** of search phrasings, merged/deduped. Only the first
+  `max_queries_per_watch` (2) are searched per scan (a request-rate cap), so put the
+  strongest phrasings first. Broader/alternate wordings surface differently-titled
+  listings of the same card; the require/grade filters keep them precise. (`query`, a
+  single string, still works.) A query the watch has never run before (newly added,
+  edited, or reordered into the window) seeds its existing listings silently on its
+  first run, so query edits don't flood you with already-listed items.
+- `rotate_queries` — set `true` to keep `queries[0]` pinned and **rotate** the last
+  window slot through the remaining phrasings (one per scan), so every phrasing is
+  searched once per cycle at the same request count. Useful for high-value watches whose
+  tail phrasings find listings the first two miss (e.g. PSA-slab wording). Needs
+  `max_queries_per_watch` >= 2 (the asking-price reference is computed from `queries[0]`).
+  The one-time silent baselines (first-run seed, per-query seed, the seed after a rules
+  edit) are only used up by a scan that could actually see the market: a scan that
+  matched nothing across all watches (foreign runner, soft-block, layout break) leaves
+  them pending, so the next healthy scan still seeds instead of flooding.
 - `match_any` — **name-fallback / multi-signature matching.** A list of signatures;
   a listing matches if it satisfies ANY one. Each signature is a require-list (same
   format as `require`). Use one signature keyed on the card number and another on
@@ -259,23 +292,32 @@ Add entries to the `watches` array in `config.json`:
   ```
   A crossing is the *headline* alert for that listing (one message, not a duplicate
   drop/below-market ping); it pings **once per crossing** and re-arms only after the
-  price rises back above target. Omit `grade` to alert on any grade. The first scan
-  after adding a rule baselines already-below listings silently (no @mention flood).
+  price rises back above target. Omit `grade` to alert on any grade. Adding or changing
+  a rule re-baselines that watch's already-seen listings from their stored prices, so an
+  edit never @mentions listings that were already sitting under the new target.
   `mention` goes in the message content with `allowed_mentions`, so it actually pings;
   use a Discord **user** id (right-click → Copy User ID with Developer Mode on).
 
 ## Reliability & maintenance
 
-- **Health check** — if a whole scan scrapes 0 listings across every watch (eBay
-  blocking, or an HTML change), you get a one-time Discord ⚠️ alert (and a ✅ when it
-  recovers). This is what stops a broken scraper from failing silently.
+- **Health check** — if a whole scan scrapes 0 listings across every watch, or eBay
+  serves only unrelated/off-query result pages (a soft-block), or 3 consecutive scans
+  match nothing, you get a one-time Discord ⚠️ alert (and a ✅ when it recovers). This
+  is what stops a broken scraper from failing silently.
+- **Watch isolation** — a watch whose config/processing raises is skipped for that pass
+  (the other watches and the health check still run) and a one-time ⚠️ "Watch error"
+  notice names it; one-time baselines wait until every watch has run.
 - **Auto-pruning** — each listing's `last_seen` date is tracked; rows not seen in
-  `prune_days` (default 30) are deleted, so `seen.db` and the git history don't grow
-  forever and sold/ended listings clear out. (`last_seen` only rewrites once/day, so
+  `prune_days` (default 30) move to a `gone` tombstone table (kept 6x `prune_days`), so
+  `seen.db` stays small while a listing that resurfaces is restored with its price and
+  flags instead of re-alerting as new. A watch that matched nothing in a scan keeps its
+  rows (an eBay outage can't erase its memory). (`last_seen` only rewrites once/day, so
   it doesn't spam commits.)
 - **Config validation** — `config.json` is checked on startup; warnings print for
   empty `queries`, a match-everything watch (no `require`/`match_any`), unknown
-  grades, or bad region codes.
+  grades/keys/languages, non-numeric prices, CJK-only require clauses (matching is
+  ASCII-normalised, so they match everything), excludes that make a watch unmatchable,
+  price targets below `min_price`, or bad region codes.
 - **Tests + CI** — `tests/test_monitor.py` runs offline (grade/lot/region/price-drop/
   validation/health); `.github/workflows/tests.yml` runs it on every push.
 - **Scraper resilience** — bids, location, and price are read by text pattern with

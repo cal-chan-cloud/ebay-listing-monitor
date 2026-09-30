@@ -1,12 +1,13 @@
 name: eBay Listing Monitor
 
-# GitHub throttles scheduled cron hard (measured ~80 min median between fires, not
-# the 5 min requested). So instead of one pass per trigger, each triggered job LOOPS
-# internally for ~50 minutes, scanning every ~5 min (poll_interval_seconds in
-# config.json), then exits so the updated seen.db is committed once. This turns the
-# unreliable ~hourly trigger into ~5-min notification granularity while a job runs.
-# (Scans are throttled to a smooth, browser-like request rate to avoid eBay's
-# rate-block — see min_request_interval_seconds / scan_workers in config.json.)
+# GitHub throttles scheduled cron hard (fires land every ~2-7 h, not the 5 min
+# requested). So instead of one pass per trigger, each triggered job LOOPS internally in
+# two ~105-min segments (seen.db is committed after each), running a full scan of every
+# watch roughly every 10-12 min and the price-target (priority) watches every ~2-3 min. The next cron fire queues behind a running job (concurrency group), so
+# coverage is near-continuous instead of ~50 min per ~2.5 h. A config/code push is
+# picked up at the next segment boundary. (Scans are throttled to a smooth, browser-like
+# request rate to avoid eBay's rate-block — see min_request_interval_seconds /
+# scan_workers in config.json; longer jobs raise daily volume, not the per-minute rate.)
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -19,11 +20,12 @@ concurrency:
 
 permissions:
   contents: write         # to commit the updated seen.db back
+  actions: write          # to requeue itself on a fresh runner (see "Requeue" below)
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 55       # safety cap; the loop self-exits at 50 min
+    timeout-minutes: 250      # safety cap; 2 x 105-min segments self-exit (~213 min + setup)
     steps:
       # Check out the CURRENT tip of main, not the schedule-fire-time commit. GitHub
       # pins `schedule` runs to github.sha (main's HEAD when the cron fired); with 50-min
@@ -45,44 +47,49 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run monitor (loop for ~50 min, scanning every few minutes)
+      # --reroll-exit: eBay localizes results by the runner's IP, and GitHub sometimes
+      # places the runner outside the US (e.g. Azure mexicocentral), where every watch
+      # then matches nothing. The monitor checks its egress country first (and watches for
+      # consecutive broken scans) and exits 75 instead of scanning blind; this job then
+      # requeues itself so the next run lands on a different runner.
+      - name: Run monitor (segment 1, ~105 min)
+        id: seg1
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: python ebay_monitor.py --loop-for-minutes 50
-
-      - name: Persist seen listings (only when changed)
-        # always(): if the loop overruns the job timeout (or the run step errors), still
-        # commit the seen.db already written to disk, so those alerts aren't re-fired.
-        if: always()
         run: |
-          if [ -z "$(git status --porcelain seen.db)" ]; then
-            echo "No new listings; seen.db unchanged."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add seen.db
-          git commit -m "chore: update seen listings [skip ci]"
-          # Push to main explicitly (works even from a detached HEAD). If the remote
-          # advanced during this ~50-min run (e.g. a code push), DON'T rebase --
-          # seen.db is binary and can't 3-way merge. Instead replay our seen.db on top
-          # of the fresh remote tip (ours-wins; code changes come from the remote).
-          if ! git push origin HEAD:main; then
-            # Retry the ours-wins replay a few times: if the remote keeps advancing (or a
-            # transient GitHub error hits) and we give up, this run's mark_seen rows and
-            # below/price_alert flags are LOST with the ephemeral runner, so the next run
-            # re-fires them as new -> a duplicate ping storm. Bounded loop + fail-visible
-            # exit so a genuinely unrecoverable persist marks the run failed (watchdog sees it).
-            cp seen.db /tmp/seen_ours.db
-            pushed=0
-            for attempt in 1 2 3 4 5; do
-              git fetch origin main || true
-              git checkout -f -B main origin/main
-              cp /tmp/seen_ours.db seen.db
-              git add seen.db
-              git diff --cached --quiet || git commit -m "chore: update seen listings [skip ci]"
-              if git push origin HEAD:main; then pushed=1; break; fi
-              sleep $((attempt * 5))
-            done
-            [ "$pushed" = 1 ] || { echo "ERROR: could not persist seen.db after 5 retries" >&2; exit 1; }
-          fi
+          rc=0; python ebay_monitor.py --loop-for-minutes 105 --reroll-exit || rc=$?
+          if [ "$rc" = 75 ]; then echo "reroll=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          exit "$rc"
+
+      - name: Persist seen listings (segment 1)
+        # always(): commit whatever seen.db already holds even if the loop errored or
+        # the job is being cancelled/timed out, so those alerts aren't re-fired.
+        if: always()
+        run: bash .github/persist.sh
+
+      # Runs only if segment 1 + its persist succeeded (a crash/bad config stops here,
+      # visibly). If the remote advanced, the persist replayed onto the new tip, so this
+      # segment runs the newest pushed code/config.
+      - name: Run monitor (segment 2, ~105 min)
+        id: seg2
+        if: steps.seg1.outputs.reroll != '1'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          pip install -q -r requirements.txt || echo "::warning::pip install failed; continuing"
+          rc=0; python ebay_monitor.py --loop-for-minutes 105 --reroll-exit || rc=$?
+          if [ "$rc" = 75 ]; then echo "reroll=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          exit "$rc"
+
+      - name: Persist seen listings (segment 2)
+        if: always()
+        run: bash .github/persist.sh
+
+      # A workflow_dispatch made with the job's own token DOES start a new run (the one
+      # documented exception to "GITHUB_TOKEN events don't trigger workflows"). It waits in
+      # the concurrency group until this job finishes, then starts on a fresh runner.
+      - name: Requeue on a fresh runner
+        if: always() && (steps.seg1.outputs.reroll == '1' || steps.seg2.outputs.reroll == '1')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run monitor.yml --ref main -R "$GITHUB_REPOSITORY"
