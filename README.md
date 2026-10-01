@@ -31,7 +31,7 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 - **Giratina V 186/196** — Lost Origin alternate full art (not the regular V or any VSTAR)
 - **Mew ex 232/091** — Paldean Fates "Bubble Mew" Special Illustration Rare (not the 216/091 Shiny)
 - **Rayquaza V 194/203** — Evolving Skies alternate full art (not the VMAX alt art 218/203)
-- **Rayquaza VMAX 218/203** — Evolving Skies alternate art secret rare (English; $300 floor)
+- **Rayquaza VMAX 218/203** — Evolving Skies alternate art secret rare (English; $300 floor; @mention when a PSA 10 lists under $1,900)
 - **Rayquaza 3/17** — POP Series 1 (2004) Cosmos Holo Rare (holo only; non-holo excluded)
 - **Rayquaza EX 123/124** — Dragons Exalted (2012) Full Art Ultra Rare (not the regular 85/124)
 - **Oshawott 105/086** — **English** SV White Flare (2025) Illustration Rare (keyed on the secret-numbered `105/086`; verified no Black Bolt / other-set Oshawott shares it, so terse listings match too)

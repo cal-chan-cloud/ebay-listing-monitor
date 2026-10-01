@@ -160,6 +160,10 @@
       "_language_note": "english: German/French/Italian prints of Evolving Skies share the English number 218/203, so the number alone does not gate language. 'English NOT Japanese' style titles are still kept (negated mentions are stripped).",
       "language": "english",
       "_min_price_note": "$300 floor: genuine raw copies ask ~$1,000+ (an LP copy was $799); a $140 '218/203' listing seen on 2026-10-01 is fake/proxy or scam bait.",
+      "_price_alerts_note": "@mention when a PSA 10 lists under $1,900 (set 2026-10-01). Live market that day: 62 PSA 10 Buy-It-Now listings, cheapest $2,099.99 (~$2,110 with shipping), next tier $2,250, median ~$2,900, so sub-$1,900 is ~10% under the cheapest ask. 'below' is the item price in USD (shipping not included); auctions are excluded from this watch, so a running bid never triggers it. Pings once per crossing, re-arms if the price rises back above target. Also puts this watch on the fast-poll priority tier.",
+      "price_alerts": [
+        {"grade": "psa10", "below": 1900, "mention": "209187722575872000"}
+      ],
       "min_price": 300,
       "max_price": null
     },
