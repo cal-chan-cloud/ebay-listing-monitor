@@ -145,6 +145,25 @@
       "max_price": null
     },
     {
+      "name": "Rayquaza VMAX Alt Art 218/203 (Evolving Skies)",
+      "_typical_price": "asking ~$1,100 raw / ~$2,900 PSA 10 (2026-10)",
+      "_note": "Pokemon. The Evolving Skies Rayquaza VMAX Alternate Art Secret Rare, 218/203 ('218203', unique to this card). Identified by the number, so it cleanly separates from the Rayquaza V alt art 194/203 (its own watch), the regular VMAX 111/203, the gold VMAX 217/203 and the Japanese Blue Sky Stream HR (different number). The 2nd signature is the PSA slab-label form ('EVOLVING SKIES #218 RAYQUAZA VMAX', 'Secret #218 FA Rayquaza VMAX PSA 10', 'Secret Full Alt Art #218'), with the bare 218 anchored to a neighbouring token so a cert or pop number can't satisfy it. Live-validated 2026-10-01 over 4 searches: 91 matches, all genuine (59 PSA 10, 28 raw, BGS 10/9.5, CGC 10); PSA 9 / BGS 8 / SGC slabs fall into other_graded (outside the house grades) and a 'JP' listing is dropped by the language gate.",
+      "queries": [
+        "rayquaza vmax 218/203 evolving skies",
+        "rayquaza vmax 218/203 psa 10",
+        "rayquaza vmax alternate art evolving skies 218",
+        "rayquaza vmax 218/203 alt art"
+      ],
+      "_queries_note": "First two run every scan (max_queries_per_watch=2): the set-name query was the strongest for raw copies (19 raw matches vs 11 for 'alt art'), the PSA query returned 56 PSA 10s.",
+      "match_any": [["rayquaza", "218/203"], ["rayquaza", "evolving skies", ["evolving skies 218", "art 218", "secret 218", "vmax 218", "218 rayquaza", "218 psa", "218 bgs", "218 cgc"]]],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "english: German/French/Italian prints of Evolving Skies share the English number 218/203, so the number alone does not gate language. 'English NOT Japanese' style titles are still kept (negated mentions are stripped).",
+      "language": "english",
+      "_min_price_note": "$300 floor: genuine raw copies ask ~$1,000+ (an LP copy was $799); a $140 '218/203' listing seen on 2026-10-01 is fake/proxy or scam bait.",
+      "min_price": 300,
+      "max_price": null
+    },
+    {
       "name": "Rayquaza 3/17 Holo (POP Series 1)",
       "_typical_price": "asking ~$98 raw (2026-09)",
       "_note": "Pokemon vintage (2004 POP Series 1 promo, Cosmos Holo Rare). Identify by number 3/17 + the set (pop series / pop 1). 3/17 normalizes to '317', a short substring that collides with e.g. 13/17 ('1317') and 3/170 ('3170'), so pairing with 'pop series' is required for precision. 3/17 IS inherently the holo card (no non-holo print), so we don't require the word 'holo' (which would also match 'non-holo' via substring and hurt recall) — instead we exclude 'non holo' to drop any mislabels. Verified offline: 7/7 real titles matched (incl. terse + PSA 10), 5/5 confusables (non-holo, 13/17, 3/170, Charizard 3/17, proxy) rejected. NOTE: PSA 8/9 (common for vintage) classify as other_graded and won't alert under the house grade set.",
