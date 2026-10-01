@@ -273,10 +273,25 @@ _UNNAMED_SLAB = re.compile(
     re.IGNORECASE)
 
 
+# PSA 9 (MINT): its own bucket, so a watch can opt in with "psa9" (watches that don't
+# list it reject it exactly as they rejected 'other_graded'). Qualified slabs ("PSA 9 OC",
+# "PSA 9 (MK)": off-center/marks/stain/print defect/out of focus/miscut, worth far less)
+# and "PSA 9-10" / "9/10" / "9.5" forms stay other_graded.
+_PSA9 = re.compile(r"\bPSA" + _SEP + _PSA_LABEL + r"9\b(?![.\-/]\d)(?!\s*\(?\s*(?:OC|ST|PD|OF|MK|MC)\b)")
+_P9 = r"PSA" + _SEP + r"(?:(?:GEM|MINT|MT|GM|GRADE)" + _SEP + r")*9"
+# Raw cards pitched as PSA 9 candidates ("PSA 9 potential", "PSA 9?", "could be a PSA 9").
+_CANDIDATE_9 = re.compile(
+    r"\b" + _P9 + r"\b(?:\s*\?|\s*[-:(]?\s*(?:candidate|contender|potential|prospect|worthy|hopeful)\b)"
+    r"|\b(?:potential\s+for|possible|future|could\s+be|should\s+be|would\s+be|will\s+be|likely|easy|sure)"
+    r"\s+(?:an?\s+)?" + _P9 + r"\b(?![.\-/]\d)",
+    re.IGNORECASE)
+
+
 def classify_grade(title: str) -> str:
-    """Return a bucket key: 'psa10', 'bgs10', 'bgs9.5', 'cgc10', 'other_graded', or 'ungraded'."""
+    """Return a bucket key: 'psa10', 'bgs10', 'bgs9.5', 'cgc10', 'psa9', 'other_graded', or 'ungraded'."""
     title = _ASPIRE_GRADE.sub(" ", title)
     title = _CANDIDATE_10.sub(" ", title)
+    title = _CANDIDATE_9.sub(" ", title)
     t = title.upper()
     if _PSA10.search(t):
         return "psa10"
@@ -286,6 +301,8 @@ def classify_grade(title: str) -> str:
         return "bgs10"
     if _CGC10.search(t):
         return "cgc10"
+    if _PSA9.search(t):
+        return "psa9"
     if _GRADED_HINT.search(title) or _GRADED_NUM.search(title) or _UNNAMED_SLAB.search(title):
         return "other_graded"
     return "ungraded"
@@ -553,6 +570,7 @@ GRADE_LABELS = {
     "bgs10": "BGS 10",
     "bgs9.5": "BGS 9.5",
     "cgc10": "CGC 10",
+    "psa9": "PSA 9",
     "other_graded": "Graded (other)",
     "ungraded": "Ungraded / Raw",
 }
@@ -562,6 +580,7 @@ GRADE_COLORS = {
     "bgs10": 0x1565C0,      # blue
     "bgs9.5": 0x00897B,     # teal
     "cgc10": 0xEF6C00,      # orange
+    "psa9": 0xE57373,       # light red
     "other_graded": 0x8E24AA,  # purple
     "ungraded": 0x616161,   # grey
 }
@@ -571,6 +590,7 @@ GRADE_EMOJI = {
     "bgs10": "🔵",
     "bgs9.5": "🟢",
     "cgc10": "🟠",
+    "psa9": "🟥",
     "other_graded": "🟣",
     "ungraded": "⚪",
 }
@@ -580,6 +600,7 @@ GRADE_COMPANY = {
     "bgs10": "BGS (Beckett)",
     "bgs9.5": "BGS (Beckett)",
     "cgc10": "CGC",
+    "psa9": "PSA",
     "other_graded": "Graded",
     "ungraded": "Raw / Ungraded",
 }
@@ -913,6 +934,12 @@ def watch_queries(watch):
     return watch.get("queries") or ([watch["query"]] if watch.get("query") else [])
 
 
+def watch_max_queries(watch, default):
+    """A watch's own "max_queries" (int >= 1) overrides the global max_queries_per_watch."""
+    v = watch.get("max_queries") if isinstance(watch, dict) else None
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 1 else default
+
+
 def query_window(queries, max_queries=None, rot=0):
     """The queries one scan runs. With a cap, keep the first (max_queries-1) PINNED (the
     strongest phrasings) and ROTATE the last slot through the rest, so every query runs
@@ -983,7 +1010,7 @@ def fetch_all_watches(domain: str, watches, workers: int = 3, max_queries=None, 
         i, watch = item
         time.sleep(random.uniform(0, 0.8))  # stagger workers so N searches don't burst at once
         try:
-            return i, fetch_all(domain, watch, max_queries=max_queries,
+            return i, fetch_all(domain, watch, max_queries=watch_max_queries(watch, max_queries),
                                 rot=rot if watch.get("rotate_queries") else None)
         except Exception as e:
             print(f"[{watch.get('name', '?')}] fetch error: {e}", file=sys.stderr)
@@ -1013,7 +1040,7 @@ def _median(values):
 # sold population, so a median means something. 'other_graded' is deliberately
 # excluded — it mixes companies and grades (PSA 9, CGC 10, SGC 8, …), so a single
 # median across it would be meaningless.
-MARKET_GRADES = ("ungraded", "psa10", "bgs10", "bgs9.5", "cgc10")
+MARKET_GRADES = ("ungraded", "psa10", "bgs10", "bgs9.5", "cgc10", "psa9")
 
 
 def fetch_sold_sales(domain, watch, max_queries=1):
@@ -1759,12 +1786,13 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         # saw. Listings found ONLY by such fresh queries are seeded silently, not alerted.
         _wq = watch_queries(watch)
         rotating = bool(watch.get("rotate_queries"))
-        _window = query_window(_wq, max_q, rot if rotating else None)
+        wmax_q = watch_max_queries(watch, max_q)
+        _window = query_window(_wq, wmax_q, rot if rotating else None)
         _qd_raw = meta_get(conn, f"qdone:{name}")
         if _qd_raw:
             q_done = set(json.loads(_qd_raw))
         elif seeded_before:   # migration: an existing watch already ran the legacy window
-            q_done = set(_wq[:int(max_q)] if max_q else _wq)
+            q_done = set(_wq[:int(wmax_q)] if wmax_q else _wq)
         else:                 # brand-new watch: only what its seeding pass actually runs
             q_done = set()
         fresh_q = set(_window) - q_done
@@ -1826,7 +1854,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         # those item-only asks (region-gated out below) dragged the p25 down or fabricated
         # it. A rotating watch also pins it to its fixed queries so the reference doesn't
         # jump every scan as the tail query changes (below_alerted is sticky).
-        _pin = set(_wq[:max(1, int(max_q) - 1)]) if (rotating and max_q and len(_wq) > int(max_q)) else None
+        _pin = set(_wq[:max(1, int(wmax_q) - 1)]) if (rotating and wmax_q and len(_wq) > int(wmax_q)) else None
         ref_pool = [x for x in listings
                     if (all_regions or passes_region(x.get("location"), regions, allow_unknown_region))
                     and (_pin is None or not x.get("_q") or (x["_q"] & _pin))]
@@ -2348,7 +2376,7 @@ _WATCH_KEYS = {"name", "query", "queries", "require", "match_any", "exclude", "g
                "min_price", "max_price", "price_alerts", "priority", "sealed_product", "allow_lots",
                "allow_auctions", "allowed_regions", "allow_unknown_region", "all_regions",
                "price_drop_pct", "price_drop_min", "below_market_pct", "below_market_floor",
-               "below_ask_pct", "reference_override", "rotate_queries"}
+               "below_ask_pct", "reference_override", "rotate_queries", "max_queries"}
 _WATCH_LANGS = {"english", "any", "japanese", "chinese", "korean"}
 # Numeric settings: a string here ("500", "5%") raises mid-scan.
 _NUMERIC_KEYS = ("min_price", "max_price", "price_drop_pct", "price_drop_min", "below_market_pct",
@@ -2390,6 +2418,8 @@ def _validate_watch(w, tag, valid_grades, warnings):
     for k in _NUMERIC_KEYS:
         if _bad_number(w.get(k)):
             warnings.append(f"{tag}: '{k}'={w.get(k)!r} must be a number (watch is skipped every scan)")
+    if "max_queries" in w and watch_max_queries(w, None) is None:
+        warnings.append(f"{tag}: 'max_queries'={w.get('max_queries')!r} must be a whole number >= 1 (ignored)")
     for k in w:
         if not k.startswith("_") and k not in _WATCH_KEYS:
             warnings.append(f"{tag}: unknown key {k!r} is ignored (typo?)")
@@ -2480,7 +2510,7 @@ def _validate_top(cfg, watches, warnings):
             # search queries[cap:]; "rotate_queries" cycles them through the last slot instead.
             dead = [w.get("name") or f"#{i}" for i, w in enumerate(watches) if isinstance(w, dict)
                     and not w.get("rotate_queries") and isinstance(watch_queries(w), (list, tuple))
-                    and len(watch_queries(w)) > int(mq)]
+                    and len(watch_queries(w)) > watch_max_queries(w, int(mq))]
             if dead:
                 print(f"config info: {len(dead)} fixed-window watch(es) have more queries than "
                       f"max_queries_per_watch={mq}; their queries[{mq}:] are never searched "

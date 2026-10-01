@@ -62,7 +62,8 @@ check("PSA 100 not PSA10", m.classify_grade("Lot of PSA 100 Luffy"), "other_grad
 check("BGS 9.5", m.classify_grade("Luffy BGS 9.5"), "bgs9.5")
 check("BGS 10 not 9.5", m.classify_grade("Luffy BGS 10 Pristine"), "bgs10")
 check("Beckett 9.5", m.classify_grade("Luffy Beckett 9.5"), "bgs9.5")
-check("PSA 9 -> other", m.classify_grade("Luffy PSA 9"), "other_graded")
+check("PSA 9 -> its own psa9 bucket", m.classify_grade("Luffy PSA 9"), "psa9")
+check("PSA 8 -> other", m.classify_grade("Luffy PSA 8"), "other_graded")
 check("CGC 10", m.classify_grade("Luffy CGC 10"), "cgc10")
 check("CGC 10 Gem Mint", m.classify_grade("Zapdos ex 202/165 CGC 10 Gem Mint"), "cgc10")
 check("CGC 10 Pristine", m.classify_grade("Charizard CGC 10 Pristine"), "cgc10")
@@ -85,7 +86,7 @@ check("BGS10 no space", m.classify_grade("Luffy BGS10 Pristine"), "bgs10")
 # GLUED mid-grade slabs (grader fused to a single/half digit, no space) must bucket
 # as other_graded, not leak into ungraded. Regression: a bare \b after the company
 # name failed here because "A9" has no letter/digit boundary.
-check("PSA9 glued -> other", m.classify_grade("Lugia ex 031/PLAY PSA9"), "other_graded")
+check("PSA9 glued -> psa9 (a slab, not raw)", m.classify_grade("Lugia ex 031/PLAY PSA9"), "psa9")
 check("PSA8 glued -> other", m.classify_grade("Charizard Base Set PSA8"), "other_graded")
 check("BGS9 glued -> other", m.classify_grade("Lugia BGS9"), "other_graded")
 check("CGC9 glued -> other", m.classify_grade("Lugia CGC9"), "other_graded")
@@ -1785,6 +1786,41 @@ ok("...but a listing now under the price target still @mentions", ("price_alert"
 for _k, _v in _sv4.items():
     setattr(m, _k, _v)
 m.time.sleep = _sv4_sleep
+
+print("== PSA 9 bucket (opt-in per watch) ==")
+for _t, _want in (("2001 POKEMON NEO DISCOVERY 1ST EDITION #1 ESPEON-HOLO PSA 9 SWIRL", "psa9"),
+                  ("2001 PSA MINT 9 - Pokemon Neo Discovery 1/75 Espeon Holo Card", "psa9"),
+                  ("Espeon 1/75 Holo PSA 9 MINT not PSA 10", "psa9"),
+                  ("Espeon 1/75 Neo Discovery PSA 9 (OC)", "other_graded"),
+                  ("Espeon 1/75 Neo Discovery PSA 9 MK", "other_graded"),
+                  ("Espeon PSA 9.5", "other_graded"),
+                  ("Espeon 1/75 raw PSA 9 potential", "ungraded"),
+                  ("Espeon 1/75 could be a PSA 9", "ungraded"),
+                  ("Espeon 1/75 PSA 9?", "ungraded"),
+                  ("Espeon BGS 9.5 not PSA 9", "bgs9.5"),
+                  ("Espeon CGC 9 Mint", "other_graded")):
+    check(f"psa9 bucket: {_t[-34:]}", m.classify_grade(_t), _want)
+ok("psa9 is a valid configurable grade", not any("unknown grade" in w for w in m.validate_config(
+    {"scan_workers": 1, "watches": [{"name": "V", "queries": ["q"], "require": ["x"], "grades": ["psa9"]}]})))
+ok("a watch without psa9 still rejects PSA 9 slabs",
+   m.classify_grade("Mew ex 232/091 PSA 9") not in {"ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"})
+
+print("== per-watch max_queries ==")
+_mq_calls = []
+_sv5 = (m.fetch_listings, m.fetch_all, m.time.sleep)
+m.fetch_all = _REAL["fetch_all"]
+m.fetch_listings = lambda d, q, **k: (_mq_calls.append(q), [])[1]
+m.time.sleep = lambda s: None
+m.fetch_all_watches("www.ebay.com", [{"name": "W3", "queries": ["a", "b", "c", "d"], "max_queries": 3},
+                                     {"name": "W2", "queries": ["e", "f", "g"]}], workers=1, max_queries=2)
+check("a watch's max_queries overrides the global cap", _mq_calls, ["a", "b", "c", "e", "f"])
+m.fetch_listings, m.fetch_all, m.time.sleep = _sv5
+ok("a bad max_queries is flagged", any("max_queries" in w for w in m.validate_config(
+    {"scan_workers": 1, "watches": [{"name": "V", "queries": ["q"], "require": ["x"], "grades": ["ungraded"],
+                                     "max_queries": "3"}]})))
+ok("max_queries is a known watch key", not any("unknown key" in w for w in m.validate_config(
+    {"scan_workers": 1, "watches": [{"name": "V", "queries": ["q"], "require": ["x"], "grades": ["ungraded"],
+                                     "max_queries": 3}]})))
 
 print("\n==== RESULT ====")
 if fails:
