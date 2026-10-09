@@ -142,6 +142,10 @@
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "language": "english",
       "_min_price_note": "$75 floor: damaged/HP genuine copies still ask ~$100-120, and this card is widely faked.",
+      "_price_alerts_note": "@mention when a PSA 10 lists under $1,500 (set 2026-10-08). Market that day: 54 PSA 10 asks, cheapest $1,825, typical ~$2,500, so sub-$1,500 is ~18% under the cheapest ask. Item price in USD (shipping not included); auctions are excluded from this watch. Pings once per crossing, re-arms if the price rises back above target. Also puts this watch on the fast-poll priority tier.",
+      "price_alerts": [
+        {"grade": "psa10", "below": 1500, "mention": "209187722575872000"}
+      ],
       "min_price": 75,
       "max_price": null
     },
