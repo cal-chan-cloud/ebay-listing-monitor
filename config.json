@@ -126,6 +126,26 @@
       "max_price": null
     },
     {
+      "name": "Mewtwo & Mew GX SM191 TAG TEAM (Black Star Promo)",
+      "_typical_price": "asking ~$290 raw / ~$2,500 PSA 10 (2026-10)",
+      "_note": "Pokemon. The Sun & Moon Black Star Promo SM191 (2019 Power Partnership tin full art), English. Identified by mewtwo + the promo number 'SM191' (norm 'sm191'; 'SM 191' / 'SM-191' / '#SM191' normalize the same), which separates it from the Unified Minds Mewtwo & Mew GX (71/236, alt art 222/236, rainbow) and the Japanese SM-P promos (different numbers). PSA's label form ('2019 POKEMON SM BLACK STAR PROMO #SM191 FULL ART/MEWTWO & MEW GX PSA 10') carries the number too. Live-validated 2026-10-08: 54/54 PSA 10 and 21/21 raw matches genuine; PSA 9 / CGC 9 / BGS 9 fall outside the house grades.",
+      "queries": [
+        "mewtwo mew gx sm191 promo",
+        "mewtwo mew gx sm191 promo psa 10",
+        "mewtwo mew gx tag team sm191 black star promo",
+        "mewtwo and mew gx sm191 full art"
+      ],
+      "_queries_note": "First two run every scan: the plain promo search was strongest for raw copies (21 raw + 15 PSA 10), the PSA search returned 54 PSA 10s. Queries avoid '&' (it's stripped by matching anyway).",
+      "require": ["mewtwo", "sm191"],
+      "exclude": ["sequential"],
+      "_exclude_note": "'sequential': 'PSA 10 SEQUENTIAL 666/667' listings are two slabs sold together, not one card.",
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "language": "english",
+      "_min_price_note": "$75 floor: damaged/HP genuine copies still ask ~$100-120, and this card is widely faked.",
+      "min_price": 75,
+      "max_price": null
+    },
+    {
       "name": "Rayquaza V Alt Art 194/203 (Evolving Skies)",
       "_typical_price": "asking ~$450 raw / ~$1,532 PSA 10 (2026-09)",
       "_note": "Pokemon. Identify by number 194/203 ('194203', unique to the V alt art) — NOT by 'rayquaza v', whose norm 'rayquazav' is a prefix of 'rayquazavmax'. The number cleanly separates it from the (also famous) Rayquaza VMAX Alt Art 218/203, the regular V 110/203, VMAX 111/203, and gold VMAX 217/203, so no 'vmax' exclude is needed (which would wrongly drop 'not VMAX' clarification listings). Verified offline: 9/9 real titles matched, 10/10 confusables (VMAX alt 218, regular V/VMAX, gold VMAX, VSTAR, sealed/jumbo/lot, extended-art case, other-Eeveelution alt art) rejected.",
