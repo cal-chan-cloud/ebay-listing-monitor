@@ -25,7 +25,7 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 - **Luffy ST26-005 SP** — SP only (min_price filters out the cheap base card)
 - **Luffy OP05-119 SEC (Alt / Manga Art)** — SEC only (min_price filters the base card)
 - **Luffy ST10-006 One Piece Day Dallas Promo** — the 2025 Dallas event exclusive (not the starter-deck ST10-006)
-- **3rd Anniversary Set (English, sealed)** — the sealed 2025 English boxed **set** (a sealed *product*, not a single; rejects the singles/promos/campaign-collection pulled from it)
+- **3rd Anniversary Set (English, sealed)** — the sealed 2025 English boxed **set** (a sealed *product*, not a single; rejects the singles/promos/campaign-collection pulled from it; @mention when one lists under $500)
 
 **Pokémon** (`language: any` — see note):
 - **Giratina V 186/196** — Lost Origin alternate full art (not the regular V or any VSTAR)

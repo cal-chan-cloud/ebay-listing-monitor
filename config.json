@@ -307,7 +307,7 @@
     },
     {
       "name": "One Piece 3rd Anniversary Set (English, sealed)",
-      "_typical_price": "asking ~$740 sealed set (2026-09)",
+      "_typical_price": "asking ~$600-720 sealed set, cheapest $599.99 (2026-10-16)",
       "_note": "SEALED PRODUCT (not a single card) — the official 2025 One Piece Card Game English Version 3rd Anniversary Set. First sealed-product watch: uses grades ['ungraded'] (boxes aren't graded) and 'sealed_product': true, which rejects any listing carrying a single-card number (OP13-120, ST01-012, ...) since those are singles pulled from the set, not the box. The is_lot / is_bulk_or_sealed gates stay ON (the plain 'Set' passes them, while lots/bundles/playsets are rejected). require = one piece + 3rd/third anniv + 'set' (excludes 1st/2nd anniversary and singles that say 'card' not 'set'). exclude 'campaign'/'treasure' drops the separate '3rd Anniversary Treasure Campaign Promo Collection' (~$26-80); 'playset' drops multi-single playsets. min_price 500 cuts the cheap no-number singles/accessories (alt-art/leader singles $100-420, deck/storage box, guide book) — the real sealed set is ~$620-2000. language 'english' drops the Japanese version. Live-verified: 161 scraped -> 39 kept, ALL genuine sealed English sets (incl. presale/in-hand/Bandai and titles with ship dates like '8/10'), 0 FP; singles (Sabo OP13-120, Ace OP13-119, Luffy ST01-012 Winner Promo) and the campaign promo collection all rejected. Note: the card-number reject uses the dash-code form only — the Pokemon '232/091' slash form is skipped because it false-matches shipping dates.",
       "queries": [
         "one piece 3rd anniversary set english version sealed",
@@ -322,12 +322,12 @@
       "sealed_product": true,
       "grades": ["ungraded"],
       "language": "english",
-      "_price_alerts_note": "@mention when a sealed set lists under $600 (market ~$950-1500, so sub-$600 is an exceptional deal; note the watch's min_price $500 floor makes the effective alert window $500-600). No grade key -> applies to the watch's only bucket (ungraded). Fires once per crossing; re-arms if the price rises back above target.",
+      "_price_alerts_note": "@mention when a sealed set lists under $500 (lowered from $600 on 2026-10-16; that day the cheapest Buy-It-Now set was $599.99 with ~25 asks at $600-720, so sub-$500 is ~17%+ under the cheapest ask). The $425 min_price floor makes the alert window $425-499. No grade key -> applies to the watch's only bucket (ungraded). Fires once per crossing; re-arms if the price rises back above target.",
       "price_alerts": [
-        {"below": 600, "mention": "209187722575872000"}
+        {"below": 500, "mention": "209187722575872000"}
       ],
-      "_min_price_note": "Real sealed sets run ~$620-2000; singles/accessories/promo-collections all fall under ~$420. 500 cleanly separates them (the dash-code reject already removes numbered singles, incl. the $700-917 Luffy ST01-012 Winner Promo).",
-      "min_price": 500,
+      "_min_price_note": "$425 (lowered from $500 on 2026-10-16 so the <$500 alert can fire): unnumbered singles/accessories that name the set ask up to ~$420 and DON!! sets/protectors far less, so $425 still keeps them out (the dash-code reject already removes numbered singles, incl. the $700-917 Luffy ST01-012 Winner Promo). A genuine set under $425 (30%+ under the cheapest ask) would be filtered out.",
+      "min_price": 425,
       "max_price": null
     },
     {
