@@ -4,7 +4,14 @@ name: Build review corpus (manual)
 # runner and uploads the raw results as an artifact, so matching rules can be validated
 # offline against real titles. Never alerts, never touches seen.db.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Only the first N searches (0 = all)"
+        default: "0"
+      raw:
+        description: "Also save raw HTML of the first N searches"
+        default: "0"
 
 permissions:
   contents: read
@@ -29,10 +36,16 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Fetch every watch's searches once
+        env:
+          CORPUS_LIMIT: ${{ inputs.limit }}
+          CORPUS_RAW: ${{ inputs.raw }}
         run: python tools/corpus.py corpus.json
 
       - uses: actions/upload-artifact@v4
         with:
           name: corpus
-          path: corpus.json
+          path: |
+            corpus.json
+            raw/
+          if-no-files-found: ignore
           retention-days: 7

@@ -6,6 +6,7 @@ It never alerts and never touches seen.db. Run it from a US machine: eBay locali
 by IP, so the script refuses to run when the egress country isn't the US.
 
     python tools/corpus.py corpus.json          # CORPUS_SPACING=3.0 seconds between requests
+    CORPUS_LIMIT=4 CORPUS_RAW=4 python tools/corpus.py corpus.json   # + raw HTML of 4 pages in raw/
 """
 import json
 import os
@@ -29,6 +30,20 @@ def main() -> int:
     m._MIN_REQUEST_INTERVAL = float(os.environ.get("CORPUS_SPACING", "3.0"))
     cfg = m.load_config()
     jobs = [(w["name"], i, q) for w in cfg["watches"] for i, q in enumerate(m.watch_queries(w))]
+    limit = int(os.environ.get("CORPUS_LIMIT", "0") or 0)
+    if limit > 0:
+        jobs = jobs[:limit]
+    raw_n = int(os.environ.get("CORPUS_RAW", "0") or 0)
+    if raw_n > 0:   # raw pages (for parser checks): one extra plain GET per saved page
+        os.makedirs("raw", exist_ok=True)
+        session = m.get_session("www.ebay.com")
+        for n, (name, qi, q) in enumerate(jobs[:raw_n], 1):
+            m._throttle_request()
+            resp = session.get(m.build_search_url("www.ebay.com", q), headers={"Referer": "https://www.ebay.com/"},
+                               timeout=25)
+            with open(os.path.join("raw", f"page{n}.html"), "w", encoding="utf-8") as f:
+                f.write(resp.text)
+            print(f"raw page {n}: HTTP {resp.status_code}, {len(resp.text)} chars ({q})")
     corpus, t0 = [], time.time()
     for n, (name, qi, q) in enumerate(jobs, 1):
         try:
