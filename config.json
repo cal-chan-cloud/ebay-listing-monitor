@@ -150,6 +150,50 @@
       "max_price": null
     },
     {
+      "name": "Slowpoke & Psyduck GX 218/236 Alt Full Art (Unified Minds)",
+      "_typical_price": "asking ~$320 raw / ~$3,500 PSA 10 (2026-10)",
+      "_note": "Pokemon, English Unified Minds (2019) TAG TEAM — the ALTERNATE full art 218/236 ('218236'). Unified Minds has four English Slowpoke & Psyduck GX: 35/236 regular holo, 217/236 regular full art, 218/236 alternate full art (this one) and 239/236 rainbow secret; Japanese Miracle Twins (095/096 of 094), Korean/Chinese prints carry other numbers. Cosmic Eclipse also numbers to /236, so the names are required too. 2nd signature = PSA's label form ('2019 POKEMON SUN & MOON UNIFIED MINDS #218 FULL ART/SLOWPOKE & PSYDUCK GX'), with the bare 218 anchored to a neighbouring token. Live-validated 2026-10-17: 18/18 matches genuine 218s (10 raw, 7 PSA 10, 1 CGC 10); every 217 / 239 / 35 / Japanese listing rejected, the '217/236 & 218/236' two-slab listing rejected as a lot.",
+      "queries": [
+        "slowpoke psyduck gx 218/236",
+        "slowpoke psyduck gx full art unified minds",
+        "slowpoke psyduck gx 218/236 psa 10",
+        "slowpoke psyduck gx alternate full art 218"
+      ],
+      "_queries_note": "First two run every scan: the number search, plus 'full art unified minds' (17 genuine 218 matches in the probe; it also catches PSA label titles that say '#218' instead of '218/236'). Queries avoid '&' (stripped by matching anyway).",
+      "match_any": [["slowpoke", "psyduck", "218/236"],
+                    ["slowpoke", "psyduck", ["unified minds 218", "minds 218", "218 full art", "art 218", "218 slowpoke", "218 psa", "218 bgs", "218 cgc"]]],
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "english: German/French/Italian prints of Unified Minds share 218/236.",
+      "language": "english",
+      "_min_price_note": "$100 floor: the cheapest genuine raw 218 asked $250; fan-art fakes ('GOLD FANART SP' $4.99) and the cheaper 35/217 versions sit well below.",
+      "min_price": 100,
+      "max_price": null
+    },
+    {
+      "name": "Blastoise & Piplup GX 215/236 Alt Full Art (Cosmic Eclipse)",
+      "_typical_price": "asking ~$450 raw / ~$3,400-4,500 PSA 10 (2026-10)",
+      "_note": "Pokemon, English Cosmic Eclipse (2019) TAG TEAM — the ALTERNATE full art 215/236 ('215236'). Cosmic Eclipse has four English Blastoise & Piplup GX: 38/236 regular, 214/236 full art, 215/236 alternate full art (this one) and 253/236 rainbow secret; Japanese Remix Bout (016/070 of 064) and Chinese 003/150 carry other numbers. Signatures: (1) names + 215/236; (2) PSA's label form '...COSMIC ECLIPSE #215 FULL ART/BLASTOISE & PIPLUP GX' with the bare 215 anchored; (3) the same label form with NO number ('COSMIC ECLIPSE FULL ART/BLASTOISE & PIPLUP GX PSA 10', 5 of the PSA 10s seen, $1,888-5,000) - the 214 full art shares that label wording, so 214/253/38/rainbow are excluded; a 214 slab listed with no number at all would slip through (none seen); (4) 'alternate/alt art' wording, which only the 215 has in English. Live-validated 2026-10-17: 38/38 number matches genuine; every 38/214/253/Japanese/Chinese/Spanish listing rejected, plus extended-art cases and a blanket.",
+      "queries": [
+        "blastoise piplup gx 215/236",
+        "blastoise piplup gx 215 psa 10",
+        "blastoise piplup gx alternate full art cosmic eclipse",
+        "blastoise piplup gx full art cosmic eclipse"
+      ],
+      "_queries_note": "First two run every scan: the number search (38 genuine matches in the probe) and the PSA 10 search. Queries avoid '&'.",
+      "match_any": [["blastoise", "piplup", "215/236"],
+                    ["blastoise", "piplup", ["cosmic eclipse 215", "eclipse 215", "215 full art", "art 215", "215 blastoise", "215 psa", "215 bgs", "215 cgc"]],
+                    ["blastoise", "piplup", "cosmic eclipse", "full art blastoise"],
+                    ["blastoise", "piplup", ["alternate art", "alt art", "alternate full art", "alt full art", "alternative full art", "alternative art"]]],
+      "exclude": ["214/236", "214 full art", "253/236", "253 full art", "rainbow", "38/236"],
+      "_exclude_note": "Siblings that share the 'FULL ART/BLASTOISE & PIPLUP GX' label wording or the name: 214/236 full art, 253/236 rainbow, 38/236 regular.",
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "english: Spanish/French/German prints share 215/236 ('Spanish Edition' and 'Tortank et Tiplouf' listings were seen).",
+      "language": "english",
+      "_min_price_note": "$150 floor: damaged genuine 215s ask ~$250; a '215/236' at $62.25 matches the 214's price (~$65-85), so it's mislabeled or fake.",
+      "min_price": 150,
+      "max_price": null
+    },
+    {
       "name": "Rayquaza V Alt Art 194/203 (Evolving Skies)",
       "_typical_price": "asking ~$450 raw / ~$1,532 PSA 10 (2026-09)",
       "_note": "Pokemon. Identify by number 194/203 ('194203', unique to the V alt art) — NOT by 'rayquaza v', whose norm 'rayquazav' is a prefix of 'rayquazavmax'. The number cleanly separates it from the (also famous) Rayquaza VMAX Alt Art 218/203, the regular V 110/203, VMAX 111/203, and gold VMAX 217/203, so no 'vmax' exclude is needed (which would wrongly drop 'not VMAX' clarification listings). Verified offline: 9/9 real titles matched, 10/10 confusables (VMAX alt 218, regular V/VMAX, gold VMAX, VSTAR, sealed/jumbo/lot, extended-art case, other-Eeveelution alt art) rejected.",

@@ -283,7 +283,9 @@ _P9 = r"PSA" + _SEP + r"(?:(?:GEM|MINT|MT|GM|GRADE)" + _SEP + r")*9"
 _CANDIDATE_9 = re.compile(
     r"\b" + _P9 + r"\b(?:\s*\?|\s*[-:(]?\s*(?:candidate|contender|potential|prospect|worthy|hopeful)\b)"
     r"|\b(?:potential\s+for|possible|future|could\s+be|should\s+be|would\s+be|will\s+be|likely|easy|sure)"
-    r"\s+(?:an?\s+)?" + _P9 + r"\b(?![.\-/]\d)",
+    r"\s+(?:an?\s+)?" + _P9 + r"\b(?![.\-/]\d)"
+    # "PSA 9-10" / "POT PSA 9/10" is a RANGE, never a real grade: a raw card pitched for grading.
+    r"|\b(?:pot(?:ential)?\.?\s+)?PSA" + _SEP + r"9\s*[-/]\s*10\b",
     re.IGNORECASE)
 
 
