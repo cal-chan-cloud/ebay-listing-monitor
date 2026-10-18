@@ -1,0 +1,38 @@
+name: Build review corpus (manual)
+
+# Manual diagnostics only: fetches every watch's searches once (3s apart) from a GitHub
+# runner and uploads the raw results as an artifact, so matching rules can be validated
+# offline against real titles. Never alerts, never touches seen.db.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ebay-corpus
+  cancel-in-progress: false
+
+jobs:
+  corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch every watch's searches once
+        run: python tools/corpus.py corpus.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corpus
+          path: corpus.json
+          retention-days: 7
