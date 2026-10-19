@@ -1,2 +1,6 @@
 requests>=2.31,<3
 beautifulsoup4>=4.12,<5
+# Transitive, but load-bearing: bs4's CSS selectors (soupsieve) and requests' HTTP layer
+# (urllib3) are resolved fresh on every CI job, so keep a new MAJOR from arriving untested.
+soupsieve>=2.5,<4
+urllib3>=2,<3

@@ -1,13 +1,14 @@
 name: eBay Listing Monitor
 
 # GitHub throttles scheduled cron hard (fires land every ~2-7 h, not the 5 min
-# requested). So instead of one pass per trigger, each triggered job LOOPS internally in
-# two ~105-min segments (seen.db is committed after each), running a full scan of every
-# watch roughly every 12-14 min and the price-target (priority) watches every ~2-3 min. The next cron fire queues behind a running job (concurrency group), so
-# coverage is near-continuous instead of ~50 min per ~2.5 h. A config/code push is
-# picked up at the next segment boundary. (Scans are throttled to a smooth, browser-like
-# request rate to avoid eBay's rate-block — see min_request_interval_seconds /
-# scan_workers in config.json; longer jobs raise daily volume, not the per-minute rate.)
+# requested). So instead of one pass per trigger, each job LOOPS internally in two
+# ~105-min segments (seen.db is committed after each) and, when it finishes normally,
+# QUEUES ITS OWN SUCCESSOR, so coverage is continuous instead of waiting hours for the
+# next cron fire (measured before: monitor idle ~20% of the time, gaps up to 6 h). The
+# cron stays as a backup (a cancelled or crashed job does not requeue). A config/code
+# push is picked up at the next segment boundary. (Scans are throttled to a smooth,
+# browser-like request rate that backs off by itself when eBay pushes back; see
+# min_request_interval_seconds / poll_interval_seconds / priority_interval_seconds.)
 on:
   schedule:
     - cron: "*/5 * * * *"
@@ -24,7 +25,9 @@ permissions:
 
 jobs:
   scan:
-    runs-on: ubuntu-latest
+    # Pinned (not ubuntu-latest, which moves to Ubuntu 26.04 from 2026-10-19): the stateful
+    # monitor shouldn't change OS under it unannounced.
+    runs-on: ubuntu-24.04
     timeout-minutes: 250      # safety cap; 2 x 105-min segments self-exit (~213 min + setup)
     steps:
       # Check out the CURRENT tip of main, not the schedule-fire-time commit. GitHub
@@ -34,12 +37,12 @@ jobs:
       # every run executes the newest code AND starts from the newest committed seen.db
       # (main's tip is always the latest "chore: update seen listings" commit).
       - name: Checkout latest main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: main
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -52,10 +55,15 @@ jobs:
       # then matches nothing. The monitor checks its egress country first (and watches for
       # consecutive broken scans) and exits 75 instead of scanning blind; this job then
       # requeues itself so the next run lands on a different runner.
+      # PYTHONUNBUFFERED: lines reach the job log as they're printed (piped stdout is
+      # block-buffered: pass summaries showed up ~20 min late, and a cancel lost them).
+      # timeout-minutes: a hung request can't hold the job; persist still runs (always()).
       - name: Run monitor (segment 1, ~105 min)
         id: seg1
+        timeout-minutes: 120
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          PYTHONUNBUFFERED: "1"
         run: |
           rc=0; python ebay_monitor.py --loop-for-minutes 105 --reroll-exit || rc=$?
           if [ "$rc" = 75 ]; then echo "reroll=1" >> "$GITHUB_OUTPUT"; exit 0; fi
@@ -73,8 +81,10 @@ jobs:
       - name: Run monitor (segment 2, ~105 min)
         id: seg2
         if: steps.seg1.outputs.reroll != '1'
+        timeout-minutes: 120
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          PYTHONUNBUFFERED: "1"
         run: |
           pip install -q -r requirements.txt || echo "::warning::pip install failed; continuing"
           rc=0; python ebay_monitor.py --loop-for-minutes 105 --reroll-exit || rc=$?
@@ -88,8 +98,16 @@ jobs:
       # A workflow_dispatch made with the job's own token DOES start a new run (the one
       # documented exception to "GITHUB_TOKEN events don't trigger workflows"). It waits in
       # the concurrency group until this job finishes, then starts on a fresh runner.
-      - name: Requeue on a fresh runner
-        if: always() && (steps.seg1.outputs.reroll == '1' || steps.seg2.outputs.reroll == '1')
+      # Queued after a reroll (wrong-country / blocked runner) AND after a normal finish,
+      # for continuous coverage. Never after a cancel (that is how the monitor is stopped
+      # or redeployed) or a crash (no tight crash loop; the cron retries later).
+      - name: Queue the next run
+        if: ${{ !cancelled() && (steps.seg1.outputs.reroll == '1' || steps.seg2.outputs.reroll == '1' || steps.seg2.outcome == 'success') }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run monitor.yml --ref main -R "$GITHUB_REPOSITORY"
+        run: |   # a transient API error must not break the chain until the next cron fire
+          for i in 1 2 3; do
+            gh workflow run monitor.yml --ref main -R "$GITHUB_REPOSITORY" && exit 0
+            sleep 20
+          done
+          exit 1

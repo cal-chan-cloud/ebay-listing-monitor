@@ -89,6 +89,18 @@ check("BGS10 no space", m.classify_grade("Luffy BGS10 Pristine"), "bgs10")
 # as other_graded, not leak into ungraded. Regression: a bare \b after the company
 # name failed here because "A9" has no letter/digit boundary.
 check("PSA9 glued -> psa9 (a slab, not raw)", m.classify_grade("Lugia ex 031/PLAY PSA9"), "psa9")
+# 2026-10-18 corpus review: a PSA-10 comparison on another grader's slab is not a PSA 10
+check("'CGC 10 PRISTINE (PSA 10+)' -> cgc10, not psa10",
+      m.classify_grade("Pokemon Slowking 2003 Aquapolis H22/H32 Holo CGC 10 PRISTINE (PSA 10+) Pop 2"), "cgc10")
+check("'BGS 9.5 (PSA 10 equivalent)' -> bgs9.5", m.classify_grade("Mew ex 232/091 BGS 9.5 (PSA 10 equivalent)"), "bgs9.5")
+check("raw 'looks like a PSA 10' -> ungraded", m.classify_grade("Mew ex 232/091 NM looks like a PSA 10"), "ungraded")
+check("'(PSA 10)' alone stays a PSA 10", m.classify_grade("Mew ex 232/091 Paldean Fates (PSA 10)"), "psa10")
+check("'PSA 10 + free toploader' stays a PSA 10", m.classify_grade("Giratina V 186/196 PSA 10 + Free Toploader"), "psa10")
+check("number-less 'CGC Pristine' -> cgc10",
+      m.classify_grade("Pokemon Mew ex 232/091 SV Paldean Fates SIR Full Art Holo CGC Pristine 2024 EN"), "cgc10")
+check("'CGC Pristine 10 candidate' stays raw", m.classify_grade("Mew ex 232/091 CGC Pristine 10 candidate"), "ungraded")
+check("AGS slab -> other_graded (not raw)", m.classify_grade("2003 POKEMON HOUNDOOM H11 AQUAPOLIS HOLO AGS MINT 9"), "other_graded")
+check("OCE slab -> other_graded", m.classify_grade("Espeon 1/75 Neo Discovery OCE GEM MINT 9"), "other_graded")
 check("PSA8 glued -> other", m.classify_grade("Charizard Base Set PSA8"), "other_graded")
 check("BGS9 glued -> other", m.classify_grade("Lugia BGS9"), "other_graded")
 check("CGC9 glued -> other", m.classify_grade("Lugia CGC9"), "other_graded")
@@ -254,7 +266,7 @@ check("currency BRL", m.detect_currency("R$ 50,00"), "BRL")
 check("US $ still USD (not SGD)", m.detect_currency("US $95.00"), "USD")
 check("bare $ still USD", m.detect_currency("$95.00"), "USD")
 check("currency none", m.parse_price("90.00")[2], None)
-ok("active search forces US-located items", "LH_PrefLoc=1" in m.build_search_url("www.ebay.com", "x"))
+ok("active search forces North-America-located items", "LH_PrefLoc=3" in m.build_search_url("www.ebay.com", "x"))
 ok("sold search not US-forced", "LH_PrefLoc" not in m.build_search_url("www.ebay.com", "x", sold=True))
 check("CAD number still parsed", m.parse_price("C $80.00")[1], 80.0)
 ok("min floor", not m.price_ok(50.0, {"min_price": 100}))
@@ -289,6 +301,20 @@ _safe = m.validate_config({
     "watches": [{"name": f"w{i}", "queries": ["a", "b"], "require": ["x"], "grades": ["ungraded"]} for i in range(32)],
 })
 ok("safe cadence -> no rate/burst warning", not any(("req/min" in w or "BURSTS" in w) for w in _safe))
+_tight = m.validate_config({
+    "poll_interval_seconds": 30, "priority_interval_seconds": 60,
+    "scan_workers": 1, "max_queries_per_watch": 2, "min_request_interval_seconds": 2.0,
+    "watches": [{"name": f"w{i}", "queries": ["a", "b"], "require": ["x"], "grades": ["ungraded"],
+                 **({"price_alerts": [{"below": 1, "mention": "1"}]} if i < 6 else {})} for i in range(34)],
+})
+ok("back-to-back passes behind a 2s throttle -> no rate warning (the throttle caps it)",
+   not any("req/min" in w for w in _tight))
+_fast = m.validate_config({
+    "poll_interval_seconds": 30, "priority_interval_seconds": 60,
+    "scan_workers": 1, "max_queries_per_watch": 2, "min_request_interval_seconds": 1.0,
+    "watches": [{"name": f"w{i}", "queries": ["a", "b"], "require": ["x"], "grades": ["ungraded"]} for i in range(34)],
+})
+ok("...but a 1s throttle with that cadence warns", any("req/min" in w for w in _fast))
 
 print("== discord sender (author cap + transient-error retry) ==")
 _cap = []
@@ -329,6 +355,13 @@ try:
 except Exception:
     _persistent_raised = True
 ok("webhook still raises on persistent 5xx (fail-visible)", _persistent_raised and _n3["i"] == 4)
+m.requests.post = lambda url, **k: _Resp(404)
+try:
+    m._post_webhook("http://wh", {"x": 1})
+except Exception:
+    pass
+check("a 404 'Unknown Webhook' marks the webhook dead", m.WEBHOOK_DEAD["status"], 404)
+m.WEBHOOK_DEAD["status"] = None
 m.requests.post, m.time.sleep = _saved_post, _saved_sleep
 
 # --------------------------------------------------------------------------
@@ -700,7 +733,7 @@ m.fetch_all = _saved_fetch_all
 
 print("== build_search_url (worldwide vs US-only + CJK query) ==")
 _u_us = m.build_search_url("www.ebay.com", "espeon 196")
-ok("US-only search forces LH_PrefLoc=1", "LH_PrefLoc=1" in _u_us)
+ok("US/CA search forces LH_PrefLoc=3 (North America)", "LH_PrefLoc=3" in _u_us)
 _u_ww = m.build_search_url("www.ebay.com", "espeon 196", worldwide=True)
 ok("worldwide search omits LH_PrefLoc", "LH_PrefLoc" not in _u_ww)
 _u_cjk = m.build_search_url("www.ebay.com", "宝可梦 月亮伊布 cbb2c-06 15/15", worldwide=True)
@@ -1214,11 +1247,142 @@ _pw["price_alerts"] = [{"grade": "psa10", "below": 3200, "mention": "U"}]
 ok("raising a target doesn't ping either", _scan(_pcfg, _pc, {"MEW": _old}) == [])
 _r = _scan(_pcfg, _pc, {"MEW": _old + [_PL("fresh", 2900)]})
 ok("a brand-new under-target listing still pings", [(x[1], x[2].get("mention")) for x in _r] == [("fresh", "U")])
-_pc.execute("UPDATE seen SET price=3300 WHERE item_id='p3'"); _pc.commit()
+_pc.execute("UPDATE seen SET price=3300, last_price=3300 WHERE item_id='p3'"); _pc.commit()
 _pw["price_alerts"] = [{"grade": "psa10", "below": 3250, "mention": "U"}]   # edit + real crossing, same pass
 _r = _scan(_pcfg, _pc, {"MEW": [_PL("p3", 3150)]})
 ok("a real crossing in the edit pass still pings once",
    [(x[0], x[1], x[2].get("mention")) for x in _r] == [("price_alert", "p3", "U")])
+
+print("== one-time re-baselines hold until every query has run under them (state review 2026-10-18) ==")
+def _fa_spec(spec, tick=None):
+    """fetch_all fake: spec = {query: [listings], or None = that query was blocked (403)}."""
+    def fa(d, w, **k):
+        if tick is not None:
+            tick[0] += 40.0
+        out, q_ok, q_err = {}, set(), set()
+        for q in m.query_window(m.watch_queries(w), m.watch_max_queries(w, k.get("max_queries")), k.get("rot")):
+            if spec.get(q, []) is None:
+                q_err.add(q)
+                continue
+            q_ok.add(q)
+            for x in spec.get(q, []):
+                out.setdefault(x["item_id"], dict(x)).setdefault("_q", set()).add(q)
+        r = m._Results(out.values())
+        r.page_ok, r.q_ok, r.q_err = True, frozenset(q_ok), frozenset(q_err)
+        return r
+    return fa
+def _scan_spec(cfg, c, spec, **kw):
+    m.fetch_all = _fa_spec(spec)
+    _X.clear(); _N.clear()
+    m.scan_once(cfg, c, **kw)
+    return [(x[0], x[1]) for x in _X]
+_ec = _db("edit403")
+_ew = {"name": "E", "queries": ["qa", "qb"], "require": ["op05-119"], "grades": ["ungraded"], "min_price": 100}
+_ecfg = _cfg(_ew)
+_A1, _B1, _B2 = L("a1", "$150.00", 150.0), L("b1", "$200.00", 200.0), L("b2", "$50.00", 50.0)
+_scan_spec(_ecfg, _ec, {"qa": [_A1], "qb": [_B1, _B2]})       # first run: silent seed
+ok("steady state: no alerts", _scan_spec(_ecfg, _ec, {"qa": [_A1], "qb": [_B1, _B2]}) == [])
+_sig0 = m.meta_get(_ec, "flt_sig:E")
+_ew["min_price"] = None                                       # rules edit: the $50 b2 now matches
+ok("rules-edit pass with one query blocked: silent", _scan_spec(_ecfg, _ec, {"qa": [_A1], "qb": None}) == [])
+ok("...and the edit isn't marked done (that query's backlog wasn't seen)", m.meta_get(_ec, "flt_sig:E") == _sig0)
+ok("the query back: its already-listed backlog is seeded, not pinged",
+   _scan_spec(_ecfg, _ec, {"qa": [_A1], "qb": [_B1, _B2]}) == [])
+ok("...the edit is done", m.meta_get(_ec, "flt_sig:E") != _sig0)
+ok("...and a genuinely new listing afterwards pings",
+   _scan_spec(_ecfg, _ec, {"qa": [_A1], "qb": [_B1, _B2, L("n1", "$60.00", 60.0)]}) == [("new", "n1")])
+_kc = _db("editstuck")
+_kw = {"name": "K", "queries": ["qa", "qb"], "require": ["op05-119"], "grades": ["ungraded"], "min_price": 100}
+_kcfg = _cfg(_kw)
+_scan_spec(_kcfg, _kc, {"qa": [_A1], "qb": [_B1]})
+_ksig = m.meta_get(_kc, "flt_sig:K")
+_kw["min_price"] = None
+for _i in range(m.BL_MAX_BLOCKED - 1):
+    _scan_spec(_kcfg, _kc, {"qa": [_A1], "qb": None})
+ok("a query failing pass after pass holds the re-baseline open ...", m.meta_get(_kc, "flt_sig:K") == _ksig)
+_scan_spec(_kcfg, _kc, {"qa": [_A1], "qb": None})
+ok(f"...for at most {m.BL_MAX_BLOCKED} passes (else the watch would stay blind)", m.meta_get(_kc, "flt_sig:K") != _ksig)
+ok("then new listings ping again", _scan_spec(_kcfg, _kc, {"qa": [_A1, L("n3", "$80.00", 80.0)], "qb": None})
+   == [("new", "n3")])
+ok("...while the failed query's own backlog still seeds silently when it comes back",
+   _scan_spec(_kcfg, _kc, {"qa": [_A1, L("n3", "$80.00", 80.0)], "qb": [_B1, _B2]}) == [])
+_rc = _db("editrot")
+_rw = {"name": "R", "queries": ["q0", "t1", "t2"], "rotate_queries": True, "require": ["op05-119"],
+       "grades": ["ungraded"]}
+_rcfg = _cfg(_rw, max_queries_per_watch=2)
+_rspec = {"q0": [_A1], "t1": [_B1], "t2": [L("p9", "$900.00", 900.0, title="Luffy OP05-119 Manga English PSA 9")]}
+for _i in range(4):
+    _scan_spec(_rcfg, _rc, _rspec)                            # seed + every tail's first run
+_rw["grades"] = ["ungraded", "psa9"]                          # rules edit: the old PSA 9 now matches
+ok("rotating watch: a rules edit seeds each tail's backlog on that tail's first run",
+   [_scan_spec(_rcfg, _rc, _rspec) for _i in range(4)] == [[], [], [], []])
+ok("...then new listings ping again",
+   _scan_spec(_rcfg, _rc, {**_rspec, "q0": [_A1, L("n2", "$70.00", 70.0)]}) == [("new", "n2")])
+
+print("== priority rounds in one full pass all credit their fresh queries ==")
+_uc = _db("qdoneunion")
+m.meta_set(_uc, "query_rot_prio", "2")
+m.meta_set(_uc, "qdone:PQ", json.dumps(["q0", "t1", "t2"]))
+m.meta_set(_uc, "seeded:PQ", "1")
+_pq = {"name": "PQ", "queries": ["q0", "t1", "t2", "t3", "t4"], "rotate_queries": True,
+       "require": ["op05-119"], "grades": ["ungraded"], "priority": True}
+_ucfg = _cfg(_pq, *[{"name": f"RQ{i}", "require": ["op05-119"], "grades": ["ungraded"]} for i in range(2)],
+             max_queries_per_watch=2, priority_interval_seconds=60, scan_workers=1)
+_tick = [0.0]
+_sv_mono_u = m.time.monotonic
+m.time.monotonic = lambda: _tick[0]
+m.PRIO_CLOCK["at"] = None
+m.fetch_all = _fa_spec({"q0": [_A1]}, tick=_tick)
+_X.clear()
+m.scan_once(_ucfg, _uc)
+m.time.monotonic = _sv_mono_u
+m.PRIO_CLOCK["at"] = None
+check("two rounds (tails t3 then t4) are both credited", sorted(set(json.loads(m.meta_get(_uc, "qdone:PQ"))) & {"t3", "t4"}),
+      ["t3", "t4"])
+
+print("== a HEALTH DOWN notice that fails to send is retried next pass ==")
+_hc = _db("healthsend")
+_hcfg = _cfg({"name": "H", "require": ["op05-119"], "grades": ["ungraded"]},
+             {"name": "H2", "require": ["op05-119"], "grades": ["ungraded"]})
+_sv_ssd = m.send_simple_discord
+def _boom_notice(*a, **k):
+    raise RuntimeError("discord down")
+m.send_simple_discord = _boom_notice
+_scan(_hcfg, _hc, {"H": [], "H2": []})                      # nothing scraped -> unhealthy
+ok("a failed DOWN notice leaves health 'ok' (so it is re-sent)", m.meta_get(_hc, "health") == "ok")
+m.send_simple_discord = _sv_ssd
+_scan(_hcfg, _hc, {"H": [], "H2": []})
+ok("...and the next pass sends it", any("health" in t.lower() for t, _ in _N) and m.meta_get(_hc, "health") == "down")
+
+print("== raising a target uses the last OBSERVED price, not the drop reference ==")
+_lc = _db("lastprice")
+_lw = {"name": "LP", "require": ["232/091"], "grades": ["psa10"], "language": "any",
+       "price_alerts": [{"grade": "psa10", "below": 2700, "mention": "U"}]}
+_lcfg = _cfg(_lw)
+_scan(_lcfg, _lc, {"LP": [_PL("lp1", 3000)]})               # seeded at $3,000
+ok("a 3% cut alone pings nothing", _scan(_lcfg, _lc, {"LP": [_PL("lp1", 2900)]}) == [])
+_lw["price_alerts"] = [{"grade": "psa10", "below": 3000, "mention": "U"}]
+ok("raising the target over a listing already cut under it doesn't ping",
+   _scan(_lcfg, _lc, {"LP": [_PL("lp1", 2900)]}) == [])
+_scan(_cfg({"name": "GU", "require": ["232/091"], "grades": ["ungraded", "psa10"], "language": "any"}), _lc,
+      {"GU": [_PL("gu1", 500, grade_prefix="")]})
+_scan(_cfg({"name": "GU", "require": ["232/091"], "grades": ["ungraded", "psa10"], "language": "any"}), _lc,
+      {"GU": [_PL("gu1", 500, grade_prefix="PSA 10 ")]})
+check("a title edited to PSA 10 updates the stored grade",
+      _lc.execute("SELECT grade FROM seen WHERE item_id='gu1'").fetchone()[0], "psa10")
+
+print("== the fresh-query guard records a below flag even at an unchanged price ==")
+_gc = _db("guardflag")
+_gw = {"name": "S", "queries": ["qa", "qb"], "require": ["op05-119"], "grades": ["ungraded"]}
+_scan_spec(_cfg(_gw), _gc, {"qa": [L("a0", "$150.00", 150.0)], "qb": [L("o1", "$85.00", 85.0)]})   # seed
+_sv_aar = m.active_asking_reference
+m.active_asking_reference = lambda *a, **k: {"ungraded": 100.0}
+_gw["queries"] = ["qa", "qc"]                               # qb replaced: o1 now seen only via a fresh query
+ok("first sighting via the fresh query: silent", _scan_spec(_cfg(_gw), _gc,
+   {"qa": [L("a0", "$150.00", 150.0)], "qc": [L("o1", "$85.00", 85.0)]}) == [])
+ok("...and no 'below' ping on the next pass either", _scan_spec(_cfg(_gw), _gc,
+   {"qa": [L("a0", "$150.00", 150.0)], "qc": [L("o1", "$85.00", 85.0)]}) == [])
+m.active_asking_reference = _sv_aar
 
 print("== prune tombstones: a resurfacing listing is restored, not re-alerted ==")
 _tc = _db("tomb")
@@ -1382,7 +1546,7 @@ _spec = _ilu.spec_from_file_location("watchdog", os.path.join(os.path.dirname(os
 _wd = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_wd)
 _wd.DB = os.path.join(_TMPD, "no_such.db")
 _wd_msgs = []
-_wd.discord = lambda msg: _wd_msgs.append(msg)
+_wd.discord = lambda msg: (_wd_msgs.append(msg), True)[1]   # delivered
 def _ago(h):
     return (m.datetime.now(m.timezone.utc) - m.timedelta(hours=h)).strftime("%Y-%m-%dT%H:%M:%SZ")
 def _wdrun(runs):
@@ -1406,6 +1570,24 @@ ok("a job that hit timeout-minutes (reported 'cancelled') is flagged as hung", "
 ok("healthy -> no alert", _wdrun([
     {"createdAt": _ago(0.3), "startedAt": _ago(0.3), "status": "in_progress", "conclusion": ""},
     {"createdAt": _ago(4), "startedAt": _ago(4), "status": "completed", "conclusion": "success"}]) == "")
+_wd.job_minutes = lambda rid: 100.0      # it waited ~3h in the queue, then ran 100 min
+ok("a long-QUEUED run cancelled by hand is not called a timeout", "job timeout" not in _wdrun([
+    {"databaseId": 7, "createdAt": _ago(5), "startedAt": _ago(5), "updatedAt": _ago(0.8), "status": "completed",
+     "conclusion": "cancelled"},
+    {"createdAt": _ago(6), "startedAt": _ago(6), "updatedAt": _ago(4.5), "status": "completed", "conclusion": "success"}]))
+_wd.job_minutes = lambda rid: 251.0
+ok("...while one whose job really ran 250 min is", "job timeout" in _wdrun([
+    {"databaseId": 7, "createdAt": _ago(5), "startedAt": _ago(5), "updatedAt": _ago(0.8), "status": "completed",
+     "conclusion": "cancelled"}]))
+_wd.discord = lambda msg: False          # webhook deleted / Discord down
+try:
+    _wdrun([{"createdAt": _ago(1.0), "startedAt": _ago(1.0), "updatedAt": _ago(0.5), "status": "completed",
+             "conclusion": "failure"}])
+    _wd_code = 0
+except SystemExit as e:
+    _wd_code = e.code
+check("an alert that can't be delivered fails the watchdog run (GitHub emails the owner)", _wd_code, 1)
+_wd.discord = lambda msg: (_wd_msgs.append(msg), True)[1]
 
 # ==========================================================================
 # Runner geography (HEALTH DOWN from a mexicocentral runner) + critic fixes
@@ -1557,6 +1739,82 @@ for _k, _v in _sv_main.items():
     setattr(m, _k, _v)
 m.time.monotonic, sys.argv = _sv_mono, _sv_argv
 m.time.sleep = lambda s: None
+
+print("== CI loop: crashing scans are reported, and fail the run ==")
+_sv_crash = {k: getattr(m, k) for k in ("load_config", "enable_file_logging", "validate_config",
+                                         "egress_country", "scan_once", "send_simple_discord")}
+_sv_mono_c, _sv_argv_c, _sv_sleep_c = m.time.monotonic, sys.argv, m.time.sleep
+_cclock = [5000.0]
+m.time.monotonic = lambda: _cclock[0]
+m.time.sleep = lambda s: _cclock.__setitem__(0, _cclock[0] + s)
+m.enable_file_logging = lambda: None
+m.validate_config = lambda cfg: []
+m.egress_country = lambda: "US"
+m.load_config = lambda: {"poll_interval_seconds": 60, "discord_webhook_url": "https://discord.test/wh",
+                         "watches": [{"name": "R", "require": ["x"], "grades": ["ungraded"]}]}
+_crash_notes = []
+m.send_simple_discord = lambda url, title, text, color: _crash_notes.append(title)
+def _crash_scan(cfg, conn, **k):
+    _cclock[0] += 60
+    raise ValueError("could not convert string to float: '5%'")
+m.scan_once = _crash_scan
+sys.argv = ["ebay_monitor.py", "--loop-for-minutes", "10"]
+try:
+    m.main()
+    _crash_code = 0
+except SystemExit as e:
+    _crash_code = e.code
+check("every full pass raising -> the run exits 1 (not green + requeued)", _crash_code, 1)
+check("...after ONE 'scans failing' notice", _crash_notes, ["⚠️ eBay monitor: scans failing"])
+def _dead_scan(cfg, conn, **k):
+    _cclock[0] += 60
+    m.WEBHOOK_DEAD["status"] = 404
+m.scan_once = _dead_scan
+try:
+    m.main()
+    _dead_code = 0
+except SystemExit as e:
+    _dead_code = e.code
+check("Discord rejecting the webhook stops the loop with exit 1", _dead_code, 1)
+m.WEBHOOK_DEAD["status"] = None
+for _k, _v in _sv_crash.items():
+    setattr(m, _k, _v)
+m.time.monotonic, sys.argv, m.time.sleep = _sv_mono_c, _sv_argv_c, _sv_sleep_c
+
+print("== CI loop sleeps only until the next pass is due (no fixed tick) ==")
+_sv_loop = {k: getattr(m, k) for k in ("load_config", "enable_file_logging", "validate_config",
+                                        "egress_country", "scan_once")}
+_sv_mono, _sv_argv, _sv_sleep = m.time.monotonic, sys.argv, m.time.sleep
+_clock = [1000.0]
+_sleeps, _log = [], []
+m.time.monotonic = lambda: _clock[0]
+def _sl(s):
+    _sleeps.append(round(s, 1))
+    _clock[0] += s
+m.time.sleep = _sl
+m.enable_file_logging = lambda: None
+m.validate_config = lambda cfg: []
+m.egress_country = lambda: "US"
+m.load_config = lambda: {"poll_interval_seconds": 30, "priority_interval_seconds": 60, "watches": [
+    {"name": "P", "require": ["x"], "grades": ["ungraded"], "priority": True},
+    {"name": "R", "require": ["x"], "grades": ["ungraded"]}]}
+def _fake_scan2(cfg, conn, **k):
+    full = k.get("full_scan", True)
+    _log.append(("full" if full else "prio", _clock[0]))
+    _clock[0] += 200 if full else 20
+    if full:
+        m.PRIO_CLOCK["at"] = _clock[0] - 50     # its last priority round ended 50s before the pass
+    return 0
+m.scan_once = _fake_scan2
+sys.argv = ["ebay_monitor.py", "--loop-for-minutes", "12"]
+m.main()
+check("passes run back to back, a priority pass in each gap",
+      _log, [("full", 1000), ("prio", 1210), ("full", 1230), ("prio", 1440), ("full", 1460), ("prio", 1670)])
+check("...sleeping only until each is due", _sleeps, [10.0, 0.0, 10.0, 0.0, 10.0])
+for _k, _v in _sv_loop.items():
+    setattr(m, _k, _v)
+m.time.monotonic, sys.argv, m.time.sleep = _sv_mono, _sv_argv, _sv_sleep
+m.PRIO_CLOCK["at"] = None
 
 print("== market notice tells the truth (deals fall back to asking prices) ==")
 _nc = _db2("notice")
@@ -1823,6 +2081,164 @@ ok("a bad max_queries is flagged", any("max_queries" in w for w in m.validate_co
 ok("max_queries is a known watch key", not any("unknown key" in w for w in m.validate_config(
     {"scan_workers": 1, "watches": [{"name": "V", "queries": ["q"], "require": ["x"], "grades": ["ungraded"],
                                      "max_queries": 3}]})))
+
+# ==========================================================================
+# Latency: alert per watch as it is fetched, priority rounds inside full passes,
+# 403 retried once, adaptive pace
+# ==========================================================================
+print("== streaming: a watch's alert goes out before the next watch is fetched ==")
+_sv7 = {k: getattr(m, k) for k in ("fetch_all", "get_market_prices", "active_asking_reference",
+                                    "send_discord", "send_simple_discord")}
+_sv7_sleep = m.time.sleep
+m.time.sleep = lambda s: None
+_events = []
+m.get_market_prices = lambda *a, **k: {}
+m.active_asking_reference = lambda *a, **k: {}
+m.send_simple_discord = lambda *a, **k: None
+m.send_discord = lambda url, name, lst, grade, **k: _events.append(("send", name, lst["item_id"]))
+def _fa7(d, w, **k):
+    _events.append(("fetch", w["name"], k.get("rot")))
+    return [L(f"{w['name']}-new", "$50.00", 50.0)]
+m.fetch_all = _fa7
+_s7 = os.path.join(_TMPD, "ebay_test7_stream.db")
+if os.path.exists(_s7):
+    os.remove(_s7)
+m.DB_PATH = _s7
+_c7 = m.db_connect()
+for _k, _v in (("ask_baseline_done", m.ASK_BASELINE_VERSION), ("pa_baseline_done", "1"),
+               ("cgc10_baseline_done", "1"), ("health", "ok")):
+    m.meta_set(_c7, _k, _v)
+_W7 = [{"name": n, "require": ["op05-119"], "grades": ["ungraded"]} for n in ("A", "B", "C")]
+for _w in _W7:
+    _c7.execute("INSERT INTO seen(watch,item_id,grade,first_seen,price,price_str,last_seen,below_alerted,price_alerted)"
+                " VALUES(?,'decoy','ungraded','2026-01-01T00:00:00',9,'$9','2026-10-01',0,0)", (_w["name"],))
+_c7.commit()
+m.scan_once({"discord_webhook_url": "https://x", "ebay_domain": "www.ebay.com", "min_request_interval_seconds": 0,
+             "scan_workers": 1, "watches": _W7}, _c7)
+_order = [(e[0], e[1]) for e in _events]
+check("fetch A, alert A, fetch B, alert B, ...", _order,
+      [("fetch", "A"), ("send", "A"), ("fetch", "B"), ("send", "B"), ("fetch", "C"), ("send", "C")])
+
+print("== priority rounds inside a full pass ==")
+_events.clear()
+_s8 = os.path.join(_TMPD, "ebay_test8_prio.db")
+if os.path.exists(_s8):
+    os.remove(_s8)
+m.DB_PATH = _s8
+_c8 = m.db_connect()
+for _k, _v in (("ask_baseline_done", m.ASK_BASELINE_VERSION), ("pa_baseline_done", "1"),
+               ("cgc10_baseline_done", "1"), ("health", "ok"), ("query_rot_prio", "5"), ("query_rot", "9")):
+    m.meta_set(_c8, _k, _v)
+_P8 = {"name": "P", "require": ["op05-119"], "grades": ["ungraded"], "priority": True}
+_R8 = [{"name": f"R{i}", "require": ["op05-119"], "grades": ["ungraded"]} for i in range(3)]
+_clock8 = [0.0]
+_sv_mono8 = m.time.monotonic
+m.time.monotonic = lambda: _clock8[0]
+m.PRIO_CLOCK["at"] = None
+def _fa8(d, w, **k):
+    _events.append(("fetch", w["name"], k.get("rot")))
+    _clock8[0] += 40.0               # each watch's searches take 40 "seconds"
+    return []
+m.fetch_all = _fa8
+m.scan_once({"discord_webhook_url": "https://x", "ebay_domain": "www.ebay.com", "min_request_interval_seconds": 0,
+             "scan_workers": 1, "priority_interval_seconds": 60, "watches": [_R8[0], _P8, _R8[1], _R8[2]]}, _c8)
+m.time.monotonic = _sv_mono8
+_names8 = [e[1] for e in _events]
+check("priority watch scanned first, then every >=60s, never in the regular slot", _names8,
+      ["P", "R0", "R1", "P", "R2"])
+check("priority rounds use the priority rotation counter", [e[2] for e in _events if e[1] == "P"], [None, None])
+check("...which advances by the number of rounds", m.meta_get(_c8, "query_rot_prio"), "7")
+check("the full-pass counter advances by one", m.meta_get(_c8, "query_rot"), "10")
+_events.clear()
+m.scan_once({"discord_webhook_url": "https://x", "ebay_domain": "www.ebay.com", "min_request_interval_seconds": 0,
+             "scan_workers": 1, "priority_interval_seconds": 60, "watches": [_P8]}, _c8, full_scan=False)
+check("a priority-only pass has no extra rounds", [e[1] for e in _events], ["P"])
+_events.clear()
+m.time.monotonic = lambda: _clock8[0]
+m.PRIO_CLOCK["at"] = _clock8[0] - 30          # a priority pass finished 30s ago
+m.scan_once({"discord_webhook_url": "https://x", "ebay_domain": "www.ebay.com", "min_request_interval_seconds": 0,
+             "scan_workers": 1, "priority_interval_seconds": 60, "watches": [_R8[0], _P8, _R8[1], _R8[2]]}, _c8)
+check("a full pass right after a priority pass skips the opening round", [e[1] for e in _events],
+      ["R0", "P", "R1", "R2", "P"])
+check("...and rounds keep the shared priority clock", m.PRIO_CLOCK["at"], _clock8[0])
+_events.clear()
+m.PRIO_CLOCK["at"] = None
+m.scan_once({"discord_webhook_url": "https://x", "ebay_domain": "www.ebay.com", "min_request_interval_seconds": 0,
+             "scan_workers": 2, "priority_interval_seconds": 60, "watches": [_R8[0], _P8]}, _c8)
+check("parallel workers: no rounds, the regular slot sets the priority clock", m.PRIO_CLOCK["at"], _clock8[0])
+m.time.monotonic = _sv_mono8
+m.PRIO_CLOCK["at"] = None
+
+print("== a 403 / soft-block is re-primed and retried (4 attempts), with no extra sleeps ==")
+_sv9 = (m.get_session, m.prime_session, m._throttle_request, m.time.sleep)
+class _R9:
+    def __init__(self, code, text):
+        self.status_code, self.text = code, text
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise m.requests.HTTPError(f"{self.status_code}")
+_gets9, _primes9, _sleeps9 = [], [], []
+class _S9:
+    def __init__(self, resps):
+        self.resps = list(resps)
+    def get(self, *a, **k):
+        _gets9.append(1)
+        return self.resps.pop(0) if len(self.resps) > 1 else self.resps[0]
+m.prime_session = lambda *a, **k: _primes9.append(1)
+m._throttle_request = lambda: None
+m.time.sleep = lambda s: _sleeps9.append(s)
+m.get_session = lambda d: _S9([_R9(403, "Access Denied")])
+with m._FETCH_STATS_LOCK:
+    m._FETCH_STATS.clear()
+try:
+    m.fetch_listings("www.ebay.com", "q")
+    ok("a persistent 403 raises", False)
+except m.requests.HTTPError:
+    ok("a persistent 403 raises", True)
+check("...after 4 attempts, re-priming between them, no sleeps", (len(_gets9), len(_primes9), _sleeps9), (4, 3, []))
+check("403s are counted", (m._FETCH_STATS["http403"], m._FETCH_STATS["failed"]), (4, 1))
+_gets9.clear(); _primes9.clear()
+_page9 = '<html>' + 'x' * 70000 + '<li class="s-card"><a href="https://www.ebay.com/itm/123456789012">'          '<span class="s-card__title">Luffy OP05-119 alt art</span></a><span class="s-card__price">$50.00</span></li></html>'
+_sess9 = _S9([_R9(403, "Access Denied"), _R9(200, _page9)])
+m.get_session = lambda d: _sess9
+_r9 = m.fetch_listings("www.ebay.com", "luffy op05-119")
+check("a 403 then a real page -> parsed, counted as recovered", (len(_r9), len(_gets9), m._FETCH_STATS["retry_ok"]), (1, 2, 1))
+_page9b = _page9.replace('<span class="s-card__price">$50.00</span>',
+                         '<span class="s-card__price">$50.00</span><span>or Best Offer</span>')
+m.get_session = lambda d: _S9([_R9(200, _page9b)])
+check("s-card buying format read from the card text", m.fetch_listings("www.ebay.com", "luffy op05-119")[0]["format"],
+      "Buy It Now or Best Offer")
+with m._FETCH_STATS_LOCK:
+    m._FETCH_STATS.clear()
+m.get_session = lambda d: _S9([_R9(403, "Access Denied")])
+try:
+    m.fetch_listings("www.ebay.com", "q", sold=True)
+except m.requests.HTTPError:
+    pass
+check("sold-comps probes stay out of the pass stats", dict(m._FETCH_STATS), {})
+_gets9.clear()
+m.get_session = lambda d: _S9([_R9(200, "<html>Pardon Our Interruption</html>")])
+check("a persistent soft-block page returns [] ...", list(m.fetch_listings("www.ebay.com", "q")), [])
+check("...after the full 4 attempts", len(_gets9), 4)
+m.get_session, m.prime_session, m._throttle_request, m.time.sleep = _sv9
+
+print("== adaptive pace ==")
+m._RATE_FACTOR[0] = 1.0
+check("403s that the retries cleared don't slow anything down",
+      m.adapt_pace({"searches": 60, "http403": 40, "retry_ok": 37, "failed": 3}), (1.0, 1.0))
+check("more than 20% of searches failing after retries slows down 1.5x",
+      m.adapt_pace({"searches": 60, "http403": 90, "failed": 13}), (1.0, 1.5))
+check("...capped at 2x", [m.adapt_pace({"searches": 10, "softblock": 30, "failed": 5})[1] for _ in range(4)][-1], 2.0)
+check("a tiny pass can't trip it", m.adapt_pace({"searches": 4, "failed": 4})[1], 2.0)
+check("between 10% and 20% failed: hold", m.adapt_pace({"searches": 60, "failed": 9})[1], 2.0)
+check("10% or less failed: ease back 15%", round(m.adapt_pace({"searches": 60, "failed": 6})[1], 3), 1.7)
+for _ in range(20):
+    m.adapt_pace({"searches": 60})
+check("...and it settles back at the configured pace", m._RATE_FACTOR[0], 1.0)
+
+for _k, _v in _sv7.items():
+    setattr(m, _k, _v)
+m.time.sleep = _sv7_sleep
 
 print("\n==== RESULT ====")
 if fails:

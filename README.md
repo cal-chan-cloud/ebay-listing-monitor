@@ -23,19 +23,19 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 
 **One Piece:**
 - **Luffy ST26-005 SP** — SP only (min_price filters out the cheap base card)
-- **Luffy OP05-119 SEC (Alt / Manga Art)** — SEC only (min_price filters the base card)
+- **Luffy OP05-119 SEC (Alt / Manga Art)** — the alt-art / manga-art SEC only (the title must say alt / manga / parallel: a bare OP05-119 is also the regular-art SEC and its PRB01 reprint); min_price filters the base card
 - **Luffy ST10-006 One Piece Day Dallas Promo** — the 2025 Dallas event exclusive (not the starter-deck ST10-006)
 - **3rd Anniversary Set (English, sealed)** — the sealed 2025 English boxed **set** (a sealed *product*, not a single; rejects the singles/promos/campaign-collection pulled from it; @mention when one lists under $500)
 
 **Pokémon** (`language: any` — see note):
-- **Giratina V 186/196** — Lost Origin alternate full art (not the regular V or any VSTAR)
-- **Mew ex 232/091** — Paldean Fates "Bubble Mew" Special Illustration Rare (not the 216/091 Shiny)
+- **Giratina V 186/196** — Lost Origin alternate full art (not the regular V or any VSTAR; English, $300 floor)
+- **Mew ex 232/091** — Paldean Fates "Bubble Mew" Special Illustration Rare (not the 216/091 Shiny; English, $300 floor)
 - **Mewtwo & Mew GX SM191** — Sun & Moon Black Star Promo TAG TEAM full art (English; not the Unified Minds 71/222/236 versions; $75 floor; @mention when a PSA 10 lists under $1,500)
 - **Slowpoke & Psyduck GX 218/236** — Unified Minds TAG TEAM alternate full art (English; not the 35/217/239 versions; $100 floor)
 - **Blastoise & Piplup GX 215/236** — Cosmic Eclipse TAG TEAM alternate full art (English; not the 38/214/253 versions; $150 floor)
 - **Rayquaza V 194/203** — Evolving Skies alternate full art (not the VMAX alt art 218/203)
 - **Rayquaza VMAX 218/203** — Evolving Skies alternate art secret rare (English; $300 floor; @mention when a PSA 10 lists under $1,900)
-- **Rayquaza 3/17** — POP Series 1 (2004) Cosmos Holo Rare (holo only; non-holo excluded)
+- **Rayquaza 3/17** — POP Series 1 (2004) Cosmos Holo Rare (holo only; non-holo excluded; also the zero-padded `003/017` spelling)
 - **Rayquaza EX 123/124** — Dragons Exalted (2012) Full Art Ultra Rare (not the regular 85/124)
 - **Oshawott 105/086** — **English** SV White Flare (2025) Illustration Rare (keyed on the secret-numbered `105/086`; verified no Black Bolt / other-set Oshawott shares it, so terse listings match too)
 - **Espeon No.196** — **Japanese** Neo Discovery ("Crossing the Ruins") Holo Rare (not Neo Destiny "Dark Espeon" No.196, nor the non-holo Premium File promo)
@@ -47,7 +47,7 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 - **Wartortle No.008 Squirtle Deck** — **Japanese** 1999 Intro Pack "Squirtle Deck"; tracks **both** Wartortle variants (#3/#10) via `wartortle` + the deck-name gate (excludes `007` so Squirtle+Wartortle combo listings fire neither watch)
 - **Lugia 9/111 Neo Genesis** — **English** 2000 WOTC Holo Rare (the set's chase card; keyed on `lugia` + `neo genesis`, since `9/111`→`9111` collides with every `X9/111` card and is redundant)
 - **Lugia ex 031/PLAY** — **Japanese** 2006 "Players" club 4th-season subscription promo (the *ex*-mechanic Lugia; keyed on `031/PLAY` + Players-Club/4th-Season phrases, never bare `031` or `ex`; excludes the stray-`031` Lugia confusables — Unseen Forces `105/115`, Silver Tempest `186/195`, etc.)
-- **Light Arcanine No.059 Neo Destiny** — **Japanese** 2001 Holo Rare (keyed on the contiguous `light arcanine` + `059`; bare `light` would collide with "lightly played", and `059` selects the Japanese print over the English `26/105`)
+- **Light Arcanine No.059 Neo Destiny** — **Japanese** 2001 Holo Rare (keyed on the contiguous `light arcanine` + `059`; bare `light` would collide with "lightly played", and `059` selects the Japanese print over the English `12/105`)
 - **Houndoom H11/H32 Aquapolis** — **English** 2003 WOTC e-Card Holo Rare (set name `aquapolis` is **required**: Houndoom is *also* `H11/H32` in Skyridge, so `houndoom`+`h11` alone would false-match it; excludes novelty `sticker` items)
 - **Slowking H22/H32 Aquapolis** — **English** 2003 WOTC e-Card Holo Rare (`slowking`+`aquapolis`+`h22`; set name required for the shared e-Card `H`-numbering, `sticker` excluded)
 - **Azumarill H4/H32 Aquapolis** — **English** 2003 WOTC e-Card Holo Rare (`azumarill`+`aquapolis`+`h4`; `h4` matches only `H4`, never `H14`/`H24`; `sticker` excluded)
@@ -63,11 +63,12 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 > commonly **PSA 8/9**, which the house grade buckets treat as "other" and don't alert
 > on — these track raw + PSA 10 / BGS 10 / BGS 9.5 / CGC 10 only.
 
-> Language note: Pokémon watches use `language: any`, not `english`. Unlike One Piece (where
-> a card shares one number across languages, so `english` usefully filters), a Pokémon card's
-> English and Japanese prints have **different collector numbers** — so requiring the English
-> number already excludes the Japanese card, and `english` would only do harm by dropping legit
-> listings that say "English **NOT Japanese**".
+> Language note: English Pokémon watches use `language: english`. A Pokémon card's English
+> and Japanese prints have different collector numbers, but its **German/French/Italian/
+> Spanish/Portuguese** prints share the English number (German PSA 10 Mew ex 232/091s were
+> alerting as the English card), so the number alone doesn't gate language. "English **NOT
+> Japanese**" titles still pass: negated language words are stripped before detection.
+> Japanese-only cards use `language: any` (their titles often say "Japanese").
 >
 > Grade note: these watches track raw + PSA 10 / BGS 10 / BGS 9.5 / CGC 10. Other slab
 > grades (PSA 9, BGS 9, CGC 9.5, SGC, …) bucket as "other" and don't alert.
@@ -79,27 +80,28 @@ of whether any local machine is on:
 
 - **Repo:** https://github.com/cal-chan-cloud/ebay-listing-monitor (public)
 - **Schedule / cadence:** `.github/workflows/monitor.yml` is triggered by cron, but
-  GitHub throttles scheduled cron hard (fires land every ~2-7 h, median ~3.9 h in
-  September, not the 5 min requested). So each triggered job **loops in two ~105-minute segments**
-  (`--loop-for-minutes 105`, `seen.db` committed after each), and the next cron fire
-  queues behind the running job, so coverage is near-continuous rather than ~50 min
-  per ~2.5 h. While a job runs, a full scan of every watch starts roughly every 12-14 min (measured ~13 min):
-  `poll_interval_seconds` (300) is the minimum time from the END of one full scan to
-  the start of the next, checked on priority ticks, so the real period is about
-  full-scan time + 360s + two priority passes. Scans are serial (`scan_workers`: 1) behind a 2s global
-  request throttle (`min_request_interval_seconds`), so a full pass of ~60 searches
-  takes ~2-4 min; each loop prints its measured cadence when it finishes. A pushed
-  config/code change goes live at the next segment boundary. For true near-zero delay,
-  run the loop on an always-on host instead (see "Local setup").
-- **Fast tier:** between full passes, the loop rescans only the **priority** watches
-  (those with `price_alerts`, or an explicit `"priority": true`) every
-  `priority_interval_seconds` (120 in config.json; the tier is off if the key is absent),
-  so those watches are rescanned about every 2-3 min while the rest wait for the next
-  full scan — concentrating
-  the extra scraping on the few watches that matter keeps the eBay soft-block risk low.
-  Set `priority_interval_seconds` to `0` to disable it. (Note: truly-underpriced cards can
-  still sell within seconds to snipers — faster polling catches the 1-3-min deals, not the
-  sub-minute ones, which only an instant-buy bot could win.)
+  GitHub throttles scheduled cron hard (fires land every ~2-7 h, not the 5 min requested).
+  So each job **loops in two ~105-minute segments** (`--loop-for-minutes 105`, `seen.db`
+  committed after each) and, when it finishes normally, **queues its own successor**
+  (`gh workflow run`), so coverage is continuous (before that, the monitor sat idle ~20% of
+  the time, with gaps up to 6 h). The cron stays as a backup; a cancelled or crashed job
+  doesn't requeue. Passes run **back to back**: `poll_interval_seconds` (30) is the pause
+  after a full pass ends, and the loop only ever sleeps until the next pass is due. Scans
+  are serial (`scan_workers`: 1) behind a 2 s global request throttle
+  (`min_request_interval_seconds`, +0-20% jitter), and each watch alerts as soon as its own
+  searches return. From a GitHub runner ~40-50% of searches draw a 403 that the retry
+  clears, so a search costs ~4-6 s and a full pass of ~57 searches plus priority rounds takes
+  ~6-8 min; each pass logs its eBay outcomes and each loop its measured cadence. A pushed
+  config/code change goes live at the next segment boundary. For true near-zero delay, run
+  the loop on an always-on host instead (see "Local setup").
+- **Fast tier:** the **priority** watches (those with `price_alerts`, or an explicit
+  `"priority": true`) are scanned in rounds every `priority_interval_seconds` (90 in
+  config.json; off if absent or `0`), **including inside a full pass**, so a long full pass
+  can't starve them: they're rescanned about every 2-2.5 min while the rest come round every
+  ~6-8 min. Concentrating the extra scraping on the few watches that matter keeps the request
+  volume (and eBay soft-block risk) bounded. (Note: truly-underpriced cards can still sell
+  within seconds to snipers — faster polling catches the 1-3-min deals, not the sub-minute
+  ones, which only an instant-buy bot could win.)
 - **Runner geography:** eBay localizes search results by the visitor's IP, and GitHub
   sometimes places the hosted runner outside the US (seen: Azure `mexicocentral`). eBay
   then serves a local-buyer page and the US/CA region gate matches nothing for that whole
@@ -282,7 +284,7 @@ Add entries to the `watches` array in `config.json`:
   mostly sold overseas, where a US/CA filter would hide nearly every listing.
 - `price_drop_pct` / `price_drop_min` — per-watch override of the drop thresholds.
 - `priority` — set `true` to put this watch on the **fast-poll tier** (see
-  `priority_interval_seconds` below). Watches with `price_alerts` are automatically on it,
+  `priority_interval_seconds` under "Fast tier" above). Watches with `price_alerts` are automatically on it,
   so under-target deals are detected/pinged sooner without speeding up every watch.
 - `price_alerts` — per-watch list of **absolute price targets that @mention someone
   on Discord**. Each rule is `{"grade": <bucket, optional>, "below": <USD>, "mention":
@@ -311,6 +313,18 @@ Add entries to the `watches` array in `config.json`:
 - **Watch isolation** — a watch whose config/processing raises is skipped for that pass
   (the other watches and the health check still run) and a one-time ⚠️ "Watch error"
   notice names it; one-time baselines wait until every watch has run.
+- **Failures end the run as failed** — a whole pass that raises skips its own health check,
+  so after two in a row a ⚠️ "scans failing" notice goes out, and a segment in which every
+  full pass raised exits 1 (no green run, no self-requeue). Discord rejecting the webhook
+  (401/404: deleted or rotated) also stops the run with exit 1, since nothing can alert. The
+  watchdog fails its own scheduled run when it can't deliver an alert, so GitHub's
+  failed-workflow email still reaches you.
+- **Silent re-baselines that hold** — after a rules edit (require/match_any/exclude/grades/
+  language/price window/regions, or the search location filter) a watch's already-listed
+  backlog that newly matches is seeded silently, and every query of the watch re-seeds its
+  own backlog on its first run under the new rules (so a rotating tail query or a 403'd
+  query can't surface it as "new" later). A pass with a failed query doesn't complete the
+  baseline (at most 3 such passes, so a query that keeps failing can't leave the watch blind).
 - **Auto-pruning** — each listing's `last_seen` date is tracked; rows not seen in
   `prune_days` (default 30) move to a `gone` tombstone table (kept 6x `prune_days`), so
   `seen.db` stays small while a listing that resurfaces is restored with its price and
@@ -326,10 +340,15 @@ Add entries to the `watches` array in `config.json`:
   validation/health); `.github/workflows/tests.yml` runs it on every push.
 - **Scraper resilience** — bids, location, and price are read by text pattern with
   CSS-class fallbacks, so eBay's frequent layout renames are less likely to break it.
-- **Transient-error retries** — the HTTP session auto-retries connection resets,
-  read timeouts, and 5xx/429 responses with exponential backoff, so a brief network
-  blip no longer drops a query for the whole pass. (eBay's 403 / "Pardon Our
-  Interruption" soft-block is handled separately, with a cookie re-prime between tries.)
+- **Transient-error retries** — the HTTP session auto-retries connection resets and
+  read timeouts, so a brief network blip doesn't drop a query for the pass. HTTP statuses
+  (403 / 429 / 5xx and "Pardon Our Interruption" pages) are retried by `fetch_listings`
+  instead: up to 4 attempts, each behind the global throttle, re-priming the homepage
+  cookies in between (measured in CI: ~70% of retries after a re-prime succeed, ~97% of
+  searches within 4 attempts; a fresh session per retry was far worse).
+- **Adaptive pace** — if more than 20% of a pass's searches still fail after every retry,
+  the request spacing slows 1.5x (up to 2x), easing back after passes with 10% or fewer.
+  Plain 403s don't count: they hit ~40-50% of first attempts at 2 s and 3 s spacing alike.
 - **Currency-aware pricing** — Canadian sellers on `ebay.com` show `C $` (CAD) and
   other regions show `£`/`€`; the scraper detects the currency so a CAD/GBP/EUR
   listing is never compared against the USD sold-median (which would fake "below
@@ -438,7 +457,16 @@ alerted so you never get a duplicate.
 ## Notes
 
 - eBay bot-protection 403s a cold request, so the script first visits the eBay
-  homepage to seed cookies, then re-primes automatically if a 403 appears later.
+  homepage to seed cookies, then re-primes automatically if a 403 appears later. From
+  GitHub runners the 403s are frequent and random (~40-50% of first attempts, regardless of
+  query, of 2 s vs 3 s spacing, and of a Chrome-TLS client vs `requests`; measured with
+  `tools/http_ab.py` via the manual corpus workflow).
+- Searches use eBay's North America location filter (`LH_PrefLoc=3`): US-only (`=1`) kept
+  Canadian sellers out of the main results although CA is an allowed region.
+- eBay's OR syntax (`(houndoom,slowking,azumarill,umbreon) aquapolis`) returns one newest-
+  first page covering several cards (measured: 10/10 of each card's newest listings for 3
+  of 4 test groups). It isn't used yet; it is the route to sub-minute coverage of every
+  watch from one IP (see `tools/http_ab.py`, group mode).
 - If eBay ever hard-blocks scraping, the robust alternative is the official
   [eBay Browse API](https://developer.ebay.com/api-docs/buy/browse/overview.html)
   (free dev account + OAuth) — `fetch_listings()` is the only function that would

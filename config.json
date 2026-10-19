@@ -1,7 +1,8 @@
 {
   "discord_webhook_url": "",
-  "poll_interval_seconds": 300,
-  "priority_interval_seconds": 120,
+  "_cadence_note": "Passes run back to back (2026-10-18): poll_interval_seconds is the pause after a full pass ends, priority_interval_seconds the gap between rounds of the price-target watches (also inside full passes). The request rate is set by min_request_interval_seconds alone; ~40-50% of searches from a GitHub runner draw a retried 403, so a search costs ~4-6 s, a full pass ~6-8 min and a priority round ~1 min.",
+  "poll_interval_seconds": 30,
+  "priority_interval_seconds": 90,
   "scan_workers": 1,
   "max_queries_per_watch": 2,
   "min_request_interval_seconds": 2.0,
@@ -36,8 +37,8 @@
         "luffy op05-119 manga art",
         "luffy op05-119 sec alternate art"
       ],
-      "match_any": [["op05-119"], ["luffy", ["awakening of new era", "awakening of the new era"], ["luffy 119", "era 119", "119 psa", "119 bgs", "119 cgc"]]],
-      "_match_note": "2nd signature = PSA slab-label form ('2023 ONE PIECE AWAKENING OF NEW ERA #119 MONKEY D. LUFFY PSA 10'); the number is anchored to a neighbouring token so a cert or pop number can't satisfy it.",
+      "match_any": [["op05-119", ["alt", "manga", "parallel"]], ["luffy", ["awakening of new era", "awakening of the new era", "op05"], ["alt art 119", "art 119", "manga"]]],
+      "_match_note": "Both signatures need the ART (alt / manga / parallel): a bare op05-119 is also the regular-art SEC and its PRB01 reprint, whose PSA/BGS 10 slabs ($110-170) cleared the $100 floor. 2nd signature = PSA's alt-art label form ('2023 ONE PIECE OP05-AWAKENING OF THE NEW ERA ALT ART #119 MONKEY D. LUFFY PSA 10'), number anchored to 'art' so a cert/pop number can't satisfy it; a label without 'ALT ART' is the regular SEC (2026-10-18 corpus: +4 alt/manga slabs found, -4 regular-art slabs).",
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "language": "english",
       "_min_price_note": "OP05-119 also matches cheap non-SEC printings. Observed a tight junk cluster at $10-75 (21 of 39 raws), with legitimate copies from $100 up. Raise this if base cards still slip through.",
@@ -54,12 +55,12 @@
         "monkey d luffy one piece day dallas promo st10-006",
         "luffy st10-006 dallas promo gear 5"
       ],
-      "require": ["luffy", "one piece day", "dallas"],
+      "require": ["luffy", "dallas", ["one piece day", "day dallas", "op day"]],
       "exclude": ["zoro", "promo pack luffy"],
       "_exclude_note": "The Dallas promo was handed out in a sealed Luffy/Zoro/Uta pack: 'zoro' drops the sealed '[SEALED] ... Promo Pack (Luffy, Zoro, Uta DON!)' packs and 'Luffy & Zoro PSA 10 Sequential' two-slab sets (both fired false 'new' alerts); 'promo pack luffy' catches a Zoro-less pack title. Bare 'promo pack' is avoided: a raw single titled '...Dallas Promo Pack Fresh' would be dropped.",
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'any': it's an English US-event exclusive (no Japanese 'One Piece Day Dallas' print exists), so the event descriptor gates it; 'english' would risk dropping a listing that mentions 'Japanese' in a comparison.",
-      "language": "any",
+      "_language_note": "language 'english': there is no Japanese Dallas print, but Japanese One Piece Day '24 promos are listed with 'Dallas' in the title (11 in the 2026-10-18 corpus, one from a US seller). Negated mentions ('not Japanese') are stripped before detection. 'day dallas'/'op day' cover titles like 'Luffy Day Dallas Giveaway BGS 10' that never say 'one piece day'.",
+      "language": "english",
       "_min_price_note": "$100 floor: the cheapest genuine raw copy seen is ~$372, while event merch (figures, keychains, display cases) that names Luffy + One Piece Day Dallas sells for $10-50.",
       "min_price": 100,
       "max_price": null
@@ -82,13 +83,14 @@
       "_exclude_note": "sealed/bulk/lot terms are now handled centrally by is_bulk_or_sealed(); only the card-specific 'vstar' (keeps out Giratina VSTAR) remains here.",
       "exclude": ["vstar"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'any': the English 186/196 number is unique to the English set (Japanese alt art is 111/100), so the number gates language and 'english' would drop legit 'English not Japanese' titles.",
-      "language": "any",
+      "_language_note": "language 'english': German/French/Italian/Spanish/Portuguese prints share the English collector number, so the number alone does not gate language (2026-10-18 corpus: a Korean copy was alerting as this card). Negated mentions ('English NOT Japanese') are stripped before detection, so those titles still pass.",
+      "language": "english",
       "_price_alerts_note": "@mention when a PSA 10 lists under $3,200 (raised from $2,700). Live market (2026): PSA 10 median ~$4,000, cheapest ~$2,850, so a sub-$3,200 PSA 10 is a below-median deal. 'below' is an absolute USD threshold (USD-priced listings only); pings once per crossing, re-arms if the price rises back above target. Also puts this watch on the fast-poll priority tier.",
       "price_alerts": [
         {"grade": "psa10", "below": 3200, "mention": "209187722575872000"}
       ],
-      "min_price": null,
+      "_min_price_note": "$300 floor: genuine copies start ~$540 raw / ~$1,740 CGC 10 / ~$3,150 PSA 10 (2026-10-18); below it were a $2.50 mislabel, an $18.49 Korean card and a $50 custom shadowbox, and a fake 'PSA 10' at that price would fire the @mention.",
+      "min_price": 300,
       "max_price": null
     },
     {
@@ -109,20 +111,21 @@
       "match_any": [
         ["mew ex", ["232/091", "232/91"]],
         [["232/091", "232/91"], "mew", ["paldean fates", "paldea fates", "paf"]],
-        ["mew ex", ["bubble mew", "soap bubble"], ["paldean fates", "paldea fates", "paf"]],
+        [["bubble mew", "soap bubble"], ["paldean fates", "paldea fates", "paf"]],
         ["mew ex", "232", ["paldean fates", "paldea fates", "paf"], ["special illustration rare", "special illus", "specillus", "bubble mew", "soap bubble"]],
         [["232/091", "232/91"], "mew", ["bubble mew", "special illustration"]]
       ],
       "_exclude_note": "sealed/bulk/lot terms are now handled centrally by is_bulk_or_sealed(); only the card-specific terms (the 216/091 sibling in both spellings, and mewtwo) remain here.",
       "exclude": ["216/091", "216/91", "mewtwo"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'any': the English 232/091 number is unique to the English set (Japanese Bubble Mew is 347/190), so the number gates language and 'english' would drop legit 'English NOT Japanese' titles.",
-      "language": "any",
+      "_language_note": "language 'english': German/French/Italian/Spanish/Portuguese prints share the English collector number, so the number alone does not gate language (2026-10-18 corpus: German and Spanish copies were alerting as this card). Negated mentions ('English NOT Japanese') are stripped before detection, so those titles still pass. German PSA 10s at $2,796-2,800 sit just above the $2,700 @mention.",
+      "language": "english",
       "_price_alerts_note": "Fire an @mention when a PSA 10 copy is listed below $2,700. 'below' is an absolute USD threshold (only USD-priced listings are compared); pings once per crossing and re-arms only if the price rises back above target.",
       "price_alerts": [
         {"grade": "psa10", "below": 2700, "mention": "209187722575872000"}
       ],
-      "min_price": null,
+      "_min_price_note": "$300 floor: genuine copies start ~$600 raw / ~$1,150 CGC 10 / ~$2,800 PSA 10 (2026-10-18); below it were a $15 '(READ DESCRIPTION!)' listing and a $190 '180HP' fake, and a fake 'PSA 10' at that price would fire the @mention.",
+      "min_price": 300,
       "max_price": null
     },
     {
@@ -162,6 +165,8 @@
       "_queries_note": "First two run every scan: the number search, plus 'full art unified minds' (17 genuine 218 matches in the probe; it also catches PSA label titles that say '#218' instead of '218/236'). Queries avoid '&' (stripped by matching anyway).",
       "match_any": [["slowpoke", "psyduck", "218/236"],
                     ["slowpoke", "psyduck", ["unified minds 218", "minds 218", "218 full art", "art 218", "218 slowpoke", "218 psa", "218 bgs", "218 cgc"]]],
+      "exclude": ["metal"],
+      "_exclude_note": "'metal': gold metal fakes of the 218 ($212 seen 2026-10-18). Per-watch only: a global 'metal' would hit Metal-type cards.",
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "english: German/French/Italian prints of Unified Minds share 218/236.",
       "language": "english",
@@ -204,11 +209,13 @@
         "rayquaza v alt art evolving skies swsh07",
         "rayquaza v 194/203 alternate full art"
       ],
+      "rotate_queries": true,
+      "_rotate_note": "queries[0] runs every scan; the second slot rotates through the rest (2026-10-18: 'pokemon rayquaza v 194/203 alt art evolving skies' found 62 matches incl. a BGS 10 and PSA 10s that the fixed first two never surfaced).",
       "match_any": [["rayquaza", "194/203"], ["rayquaza", "evolving skies", ["evolving skies 194", "art 194", "194 psa", "194 bgs", "194 cgc"]]],
       "_match_note": "2nd signature = PSA slab-label form ('Evolving Skies Rayquaza V Alt Art #194 PSA 10'), number anchored to a neighbouring token.",
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'any': the English 194/203 number is unique to the English set (the Japanese Rayquaza V SAR from Blue Sky Stream has a different number), so the number gates language and 'english' would drop legit 'English NOT Japanese' titles.",
-      "language": "any",
+      "_language_note": "language 'english': German/French/Italian/Spanish/Portuguese prints share the English collector number, so the number alone does not gate language. Negated mentions ('English NOT Japanese') are stripped before detection, so those titles still pass. (The number does keep out the Japanese Blue Sky Stream SAR.)",
+      "language": "english",
       "min_price": null,
       "max_price": null
     },
@@ -245,10 +252,12 @@
         "rayquaza 3/17 holo rare pop series 1 promo",
         "2004 pokemon pop series 1 rayquaza 3/17 holo"
       ],
-      "require": ["rayquaza", "3/17", ["pop series", "pop 1"]],
+      "match_any": [["rayquaza", ["3/17", "003/017"], ["pop series", "pop 1", "series 1", "pop 3/17", "pop 003/017"]],
+                    ["rayquaza", ["series 1 3 rayquaza", "series 1 holo rayquaza 3"]]],
+      "_match_note": "'003/017' (norm '003017', which does NOT contain '317') was missing: 19 of 52 genuine US listings on 2026-10-18 used it. 2nd signature = PSA/CGC label form ('POP SERIES 1 #3 RAYQUAZA-HOLO').",
       "exclude": ["non holo"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "language": "any",
+      "language": "english",
       "min_price": null,
       "max_price": null
     },
@@ -267,7 +276,7 @@
         ["rayquaza", "123", ["full art", "fullart"], ["dragons exalted", "dragonsexalted"]]
       ],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "language": "any",
+      "language": "english",
       "min_price": null,
       "max_price": null
     },
@@ -285,7 +294,7 @@
         ["espeon", "196", ["crossing the ruins", "neo discovery", "neo2"]],
         ["espeon", "crossing the ruins"]
       ],
-      "exclude": ["umbreon", "dark", "destiny", "non holo", "premium file"],
+      "exclude": ["umbreon", "dark", "destiny", "non holo", "premium file", "promo"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': the JP-unique set name + bare No.196 gate it to the Japanese Neo Discovery print; 'japanese' would drop English-titled Japan listings with no CJK/'Japanese' word. A purely-CJK title (エーフィ only, no romaji 'Espeon') normalizes to just '196' and can't be matched — accepted limitation.",
       "language": "any",
@@ -324,12 +333,13 @@
         "ガーディ vending series 3 グロース"
       ],
       "require": ["growlithe", "vending", ["series 3", "series iii", "58"]],
-      "exclude": ["sticker"],
-      "_exclude_note": "'sticker': the 2000 'Vintage Vending Machine Prism Sticker' Growlithe #058 is a different product (it fired a false alert); a slab title can mention a 'PSA sticker', so this stays per-watch, not global.",
+      "exclude": ["sticker", "prism", "carddass"],
+      "_exclude_note": "'sticker'/'prism': the 2000 'Vintage Vending Machine Prism Sticker' Growlithe #058 is a different product (it fired a false alert); a slab title can mention a 'PSA sticker', so this stays per-watch, not global. 'carddass': Bandai's 1996-97 Carddass vending #58 Growlithe also says 'vending' + '58'.",
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only Vending card (no English print), so growlithe + vending + series 3 already gate identity; _norm strips CJK, matching rides on the Latin tokens sellers include, and 'any' keeps the many CJK/Japanese-tagged listings that 'english' would drop.",
       "language": "any",
-      "min_price": null,
+      "_min_price_note": "$40 floor: genuine raw Series 3 copies ask ~$65-170 (2026-10-18); the 2000 prism sticker also turns up titled without 'sticker' ($18 'Vending Machine Holo Growlithe 058 2000').",
+      "min_price": 40,
       "max_price": null
     },
     {
@@ -362,7 +372,8 @@
       "rotate_queries": true,
       "_rotate_note": "queries[0] (best per-pass coverage, measured on the 2026-09 corpus) runs every scan; the second slot rotates through the rest, so every phrasing (incl. the PSA-10 wording) is searched once per cycle at the same request count.",
       "require": ["one piece", ["3rd anniv", "third anniv"], "set"],
-      "exclude": ["campaign", "treasure", "playset"],
+      "exclude": ["campaign", "treasure", "playset", "tin set", "2027"],
+      "_exclude_note": "'tin set': bundles with an OP13 tin set; '2027': '(PRESALE JULY 2027)' is the Chinese set's release, listed as 'English' at $420-499, inside the <$500 @mention (2026-10-18).",
       "sealed_product": true,
       "grades": ["ungraded"],
       "language": "english",
@@ -388,7 +399,7 @@
       "max_queries": 3,
       "_queries_note": "max_queries 3 (this watch only, +1 request per full scan): the two raw-focused searches keep running every scan and 'espeon neo discovery psa 9' adds the PSA 9 slabs, which are mostly titled in PSA's label form without '1/75'.",
       "match_any": [["espeon", "neo discovery", "1/75"],
-                    ["espeon", "neo discovery", ["discovery 1 espeon", "edition 1 espeon", "unlimited 1 espeon", "edition 1 pokemon", "espeon 1 neo", "espeon 1 psa", "espeon 1 bgs", "espeon 1 cgc", "espeon 1 holo", "espeon holo rare 1", "holo rare 1"]]],
+                    ["espeon", "neo discovery", ["discovery 1 espeon", "edition 1 espeon", "unlimited 1 espeon", "edition 1 pokemon", "espeon 1 neo", "espeon 1 psa", "espeon 1 bgs", "espeon 1 cgc", "espeon 1 holo", "espeon holo rare 1", "holo rare 1", "espeon holo 1 psa", "espeon holo 1 bgs", "espeon holo 1 cgc", "holo espeon 1"]]],
       "_match_note": "2nd signature = PSA slab-label form ('2001 POKEMON NEO DISCOVERY 1ST EDITION #1 ESPEON-HOLO PSA 9', 'Neo Discovery Unlimited #1 Espeon'): the bare '1' is anchored to a neighbouring token so '2001 Espeon', the non-holo Espeon 20/75 ('#20 ESPEON') and the Japanese #196 can't satisfy it. 'holo rare 1' is safe because the #1 is Neo Discovery's only HOLO Espeon; the 20/75 (non-holo rare, 'non holo rare 1st edition') is excluded by '20/75' and 'non holo'.",
       "exclude": ["dark", "destiny", "german", "french", "italian", "spanish", "20/75", "non holo"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10", "psa9"],
@@ -407,8 +418,10 @@
         "pokemon lugia neo genesis 9/111",
         "lugia neo genesis holo psa cgc"
       ],
+      "rotate_queries": true,
+      "_rotate_note": "queries[0] runs every scan; the second slot rotates through the rest (2026-10-18: 'lugia neo genesis holo psa cgc' surfaced 6 matches the fixed first two never did). 'No. 249' (Lugia's dex number) is how the Japanese Neo Genesis print is titled, hence the excludes.",
       "require": ["lugia", "neo genesis"],
-      "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "liga", "ligue"],
+      "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "liga", "ligue", "lugia no 249", "249 lugia"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'english' + foreign-word excludes: the 9/111 number is shared across WOTC's Western-language prints, so the language markers scope this to English while terse English listings (no language word -> 'unknown') are kept; 'english' additionally drops JP/CJK.",
       "language": "english",
@@ -473,10 +486,11 @@
         "ゼニガメ イントロパック 007 squirtle deck"
       ],
       "match_any": [
-        ["squirtle", ["squirtle deck", "intro pack", "intro deck", "vhs"], ["007", "no007"]],
-        ["squirtle", ["squirtle deck", "intro pack", "intro deck", "vhs"], ["16", "18", "37", "40"]]
+        ["squirtle", ["squirtle deck", "intro pack", "intro deck", "intro squirtle", "vhs"], ["007", "no007"]],
+        ["squirtle", ["squirtle deck", "intro pack", "intro deck", "intro squirtle", "vhs"], ["16", "18", "37", "40"]]
       ],
       "exclude": ["wartortle", "blastoise", "venusaur", "growlithe", "spearow", "poliwag", "magmar", "diglett", "machop", "jigglypuff", "arcanine", "energy"],
+      "_match_note": "Since the note above was written, a 2nd signature keys on the deck POSITION (16/18/37/40) after all: most titles name a position, not No.007 (17 of 26 alerts on 2026-10-18 matched only through it). The stray-digit risk the note describes is held off by the set clause plus the sibling/'energy' excludes. 'intro squirtle' covers 'Squirtle 37 Intro (Squirtle)' / 'Japan Intro Squirtle #37'.",
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only Intro Pack card (no English print); _norm strips CJK so matching rides on the Latin tokens (squirtle / squirtle deck / intro pack / 007) sellers include, and 'any' keeps terse listings a 'japanese' filter would drop.",
       "language": "any",
@@ -511,7 +525,7 @@
         "light arcanine no.059 holo japanese 2001",
         "pokemon japanese light arcanine neo destiny holo rare"
       ],
-      "require": ["light arcanine", ["059", "no.59", "no. 59", "#59", "darkness and to light", "darkness, and to light", "darkness & to light", "neo 4"]],
+      "require": ["light arcanine", ["059", "no.59", "no. 59", "holo 59", "arcanine 59", "59 holo", "darkness and to light", "darkness, and to light", "darkness & to light", "neo 4"]],
       "exclude": ["12/105"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only Neo Destiny print (the English Light Arcanine is 12/105, excluded by the '059' anchor + the 12/105 exclude); _norm strips CJK so matching rides on 'light arcanine' + '059', and 'any' keeps terse listings a 'japanese' filter would drop.",
@@ -583,7 +597,9 @@
         "pokemon shining gyarados 65/64 1st edition",
         "shining gyarados neo revelation english holo"
       ],
-      "require": ["shining gyarados", ["65/64", "neo revelation"]],
+      "rotate_queries": true,
+      "_rotate_note": "queries[0] runs every scan; the second slot rotates through the rest (2026-10-18: 'pokemon shining gyarados 65/64 1st edition' surfaced 5 matches the fixed first two never did, incl. a $75,000 BGS 9.5).",
+      "require": ["shining gyarados", ["65/64", "neo revelation", "double holo"]],
       "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'english' + EU-language excludes: Neo Revelation's 65/64 is shared across Western-language prints, so the markers scope to English while terse English listings (no language word -> 'unknown') are kept.",
@@ -602,7 +618,7 @@
         "umbreon aquapolis #h29 holo rare"
       ],
       "require": ["umbreon", "aquapolis", "h29"],
-      "exclude": ["sticker"],
+      "exclude": ["sticker", "sequential", "espeon"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'english': Aquapolis was printed in EN + DE/FR/IT/ES/PT (it is NOT English-only), but the monitor's language layer (title_language) detects EU-language markers — Italian/Italiano/ITA/Deutsch/French/etc. as whole words — and drops those foreign prints, so 'english' scopes to the English card while keeping terse listings (no language word -> 'unknown'). Residual: bare 'FR' stays uncatchable (it collides with the 'Fair' condition grade).",
       "language": "english",
@@ -638,7 +654,8 @@
         "pokemon dark dragonair 38/110 reverse holo",
         "dark dragonair legendary collection 38 reverse"
       ],
-      "require": ["dark dragonair", "38/110", "reverse"],
+      "match_any": [["dark dragonair", "38/110", "reverse"], ["dark dragonair", "legendary", "reverse"]],
+      "_match_note": "2nd signature: slab labels often drop the number ('CGC 10 Dark Dragonair Legendary Collection Reverse Holo 38', '... #38 DARK DRAGONAIR-REVERSE FOIL PSA 8'); Legendary Collection has only one Dark Dragonair.",
       "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'english' + EU-language excludes scope to the English print; terse English listings (no language word -> 'unknown') are kept.",
@@ -656,7 +673,8 @@
         "giratina 10/127 platinum holo english",
         "giratina platinum #10 holo rare"
       ],
-      "require": ["giratina", "10/127"],
+      "match_any": [["giratina", "10/127"], ["giratina", "platinum", "lv 63"]],
+      "_match_note": "2nd signature: Lv. 63 is this card (the Platinum 28/127 Giratina is Lv. 70), for titles like 'Giratina Lv. 63 Platinum Holo Rare 10 *P'.",
       "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'english' + EU-language excludes: Platinum's 10/127 is shared across Western-language prints, so the markers scope to English while terse English listings are kept.",
@@ -674,7 +692,7 @@
         "morty ninetales 020/141 pokemon vs 1st edition",
         "モーティ キュウコン vs"
       ],
-      "match_any": [["morty", "ninetales"], ["ninetales", "020/141"]],
+      "match_any": [["morty", ["ninetales", "ninetails"]], [["ninetales", "ninetails"], ["020/141", "20/141"]]],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only VS set (no English print — the English Gym sets use Kanto leaders, not Morty); _norm strips CJK so matching rides on the Latin 'morty'/'ninetales' tokens, and 'any' keeps terse listings a 'japanese' filter would drop.",
       "language": "any",

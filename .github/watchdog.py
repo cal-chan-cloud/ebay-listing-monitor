@@ -11,7 +11,8 @@ scheduled workflow and pings Discord if:
   3. the committed health state is "down" (scraper/matching broken and unresolved).
 
 Because it's a distinct workflow, a break in the monitor workflow itself doesn't stop
-this. It never fails the job — the Discord alert (and log) is the signal.
+this. The Discord alert (and log) is the signal; the job FAILS only when that alert can't
+be delivered (no or rejected webhook), so GitHub's failed-run email reaches the owner.
 """
 import json
 import os
@@ -29,10 +30,11 @@ DB = os.path.join(HERE, "seen.db")
 
 
 def discord(msg):
+    """Post the alert; True if Discord accepted it."""
     url = os.environ.get("DISCORD_WEBHOOK_URL", "")
     if not url or url.startswith("PASTE_"):
         print("watchdog: no webhook configured; not sending.")
-        return
+        return False
     payload = {"embeds": [{
         "title": "\U0001F415 eBay monitor watchdog",
         "description": msg,
@@ -45,8 +47,10 @@ def discord(msg):
     try:
         urllib.request.urlopen(req, timeout=20)
         print("watchdog: Discord alert sent.")
+        return True
     except Exception as e:
         print(f"watchdog: Discord send failed: {e}", file=sys.stderr)
+        return False
 
 
 def recent_runs():
@@ -59,11 +63,27 @@ def recent_runs():
     try:
         out = subprocess.check_output(
             ["gh", "run", "list", "--workflow", "monitor.yml", "-L", "20",
-             "--json", "createdAt,startedAt,updatedAt,status,conclusion", "-R", REPO],
+             "--json", "databaseId,createdAt,startedAt,updatedAt,status,conclusion", "-R", REPO],
             text=True, timeout=60)
         return json.loads(out)
     except Exception as e:
         print(f"watchdog: could not list runs: {e}", file=sys.stderr)
+        return None
+
+
+def job_minutes(run_id):
+    """Minutes the run's job actually RAN (its own start -> end), or None if unknown. A run's
+    createdAt-based span includes hours spent queued behind the previous monitor job."""
+    try:
+        out = subprocess.check_output(
+            ["gh", "run", "view", str(run_id), "--json", "jobs", "-R", REPO], text=True, timeout=60)
+        jobs = json.loads(out).get("jobs") or []
+        spans = [(datetime.fromisoformat(j["completedAt"].replace("Z", "+00:00"))
+                  - datetime.fromisoformat(j["startedAt"].replace("Z", "+00:00"))).total_seconds() / 60
+                 for j in jobs if j.get("startedAt") and j.get("completedAt")]
+        return max(spans) if spans else None
+    except Exception as e:
+        print(f"watchdog: could not read jobs of run {run_id}: {e}", file=sys.stderr)
         return None
 
 
@@ -103,8 +123,12 @@ def main():
         # 'timed_out'). A short 'cancelled' run is a superseded pending run (the concurrency
         # group cancels it) or a manual cancel: it neither scanned nor crashed, so it must
         # not mask the real last run. A QUEUED run hasn't scanned anything either.
+        def _hung(r):   # long cancelled run: confirm with the job's own run time (queue excluded)
+            ran = job_minutes(r["databaseId"]) if r.get("databaseId") else None
+            return ran is None or ran >= TIMEOUT_MINUTES - 5
+
         timed_out = [r for r in runs if r.get("status") == "completed"
-                     and r.get("conclusion") == "cancelled" and _minutes(r) >= TIMEOUT_MINUTES]
+                     and r.get("conclusion") == "cancelled" and _minutes(r) >= TIMEOUT_MINUTES and _hung(r)]
         real = [r for r in runs if r.get("conclusion") not in ("cancelled", "skipped") or r in timed_out]
         # Liveness = when a run was last ACTIVE: now, if one is running (a multi-hour looping
         # job; a hung one is bounded by timeout-minutes), else the END (updatedAt) of the
@@ -156,7 +180,10 @@ def main():
         if REPO:
             msg += f"\n\nActions: https://github.com/{REPO}/actions"
         print("WATCHDOG ALERT:\n" + msg)
-        discord(msg)
+        if not discord(msg):
+            # Undeliverable alert (no/rejected webhook): fail this scheduled run instead, so
+            # GitHub's failed-workflow email reaches the owner.
+            sys.exit(1)
     else:
         print("watchdog: monitor is running and healthy.")
 

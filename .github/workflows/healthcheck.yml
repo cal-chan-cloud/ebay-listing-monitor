@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Need a little history so the gh-unavailable fallback can read the age of the
           # newest seen.db commit (git log -1 -- seen.db); depth 1 has no history to walk.

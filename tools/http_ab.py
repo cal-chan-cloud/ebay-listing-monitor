@@ -178,11 +178,11 @@ def group_experiment(cfg):
                   f"all {sum(1 for i in own if i in gids)}/{len(own)}; group accepts {len(in_group)} for it")
             rows.append({"group": gq, "watch": w["name"], "own": own, "in_group": in_group,
                          "newest10_hit": hit, "newest10": len(top)})
-    # Location filter: LH_PrefLoc=1 (US only, what the monitor sends) vs 3 (North America?):
+    # Location filter: LH_PrefLoc=1 (US only) vs 3 (North America, what the monitor sends since 2026-10-18):
     # where the first 60 results are located, to see whether Canadian sellers get in.
     for q in ("mew ex 232/091 psa 10", "rayquaza vmax 218/203 evolving skies", "luffy op05-119 manga art"):
         for loc in ("1", "3"):
-            url = m.build_search_url(DOMAIN, q).replace("LH_PrefLoc=1", "LH_PrefLoc=" + loc)
+            url = m.build_search_url(DOMAIN, q).replace("LH_PrefLoc=" + m.SEARCH_PREFLOC, "LH_PrefLoc=" + loc)
             text = _get_page(session, url, stats)
             if text is None:
                 print(f"PREFLOC={loc} {q!r}: blocked every attempt")
