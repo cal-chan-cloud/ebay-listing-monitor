@@ -15,6 +15,9 @@ on:
       ab:
         description: "Instead: A/B requests vs curl_cffi on N searches (0 = off)"
         default: "0"
+      ab_mode:
+        description: "A/B experiment: client (requests vs curl_cffi) or retry (403 retry policies)"
+        default: "client"
 
 permissions:
   contents: read
@@ -49,6 +52,7 @@ jobs:
         if: ${{ inputs.ab != '0' }}
         env:
           AB_N: ${{ inputs.ab }}
+          AB_MODE: ${{ inputs.ab_mode }}
         run: |
           pip install "curl_cffi>=0.7,<1"
           python tools/http_ab.py ab.json

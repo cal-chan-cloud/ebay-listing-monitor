@@ -8,6 +8,10 @@ client's first-attempt OK / 403 / soft-block rates and checks that the pages par
 alike. It never alerts and never touches seen.db.
 
     pip install curl_cffi && AB_N=50 python tools/http_ab.py ab.json   # AB_SPACING=2.0 s
+
+AB_MODE=retry instead compares what to do after a 403, interleaved over N searches with one
+session per policy: retry at once ("plain"), re-prime the homepage first ("prime", the
+monitor's current behaviour minus its sleeps) or start a fresh primed session ("fresh").
 """
 import json
 import os
@@ -40,6 +44,63 @@ def parse(text, query):
         m.get_session, m._throttle_request = real
 
 
+def _primed(stats):
+    s = m._build_session()
+    m._throttle_request()
+    try:
+        stats["prime_" + str(s.get(f"https://{DOMAIN}/", timeout=25).status_code)] += 1
+    except Exception as e:
+        stats["prime_" + type(e).__name__] += 1
+    return s
+
+
+def retry_experiment(queries, attempts=4):
+    """-> per-policy outcomes. Each search makes up to `attempts` tries under one policy."""
+    policies = ("plain", "prime", "fresh")
+    stats = {p: Counter() for p in policies}
+    sessions = {p: _primed(stats[p]) for p in policies}
+    rows = []
+    for i, q in enumerate(queries):
+        pol = policies[i % len(policies)]
+        st, codes, t0 = stats[pol], [], time.time()
+        url = m.build_search_url(DOMAIN, q)
+        for attempt in range(1, attempts + 1):
+            m._throttle_request()
+            st["requests"] += 1
+            try:
+                r = sessions[pol].get(url, headers={"Referer": f"https://{DOMAIN}/"}, timeout=25)
+                kind = "403" if r.status_code == 403 else ("soft" if m._looks_blocked(r.text) else str(r.status_code))
+            except Exception as e:
+                kind = type(e).__name__
+            codes.append(kind)
+            if kind == "200":
+                break
+            if attempt < attempts:
+                st["after_" + kind] += 1
+                if pol == "prime":
+                    m._throttle_request()
+                    st["requests"] += 1
+                    try:
+                        st["prime_" + str(sessions[pol].get(f"https://{DOMAIN}/", timeout=25).status_code)] += 1
+                    except Exception as e:
+                        st["prime_" + type(e).__name__] += 1
+                elif pol == "fresh":
+                    st["requests"] += 1
+                    sessions[pol] = _primed(st)
+        st["searches"] += 1
+        st["ok"] += codes[-1] == "200"
+        st["secs"] += time.time() - t0
+        for a, b in zip(codes, codes[1:]):
+            st[f"retry_{a}_then_{'ok' if b == '200' else b}"] += 1
+        rows.append({"query": q, "policy": pol, "codes": codes})
+        print(f"[{i + 1}/{len(queries)}] {pol:5s} {' '.join(codes):24s} {q[:48]}", flush=True)
+    for pol, st in stats.items():
+        n = st["searches"] or 1
+        print(f"  {pol:5s} ok {st['ok'] / n:6.1%}  requests/search {st['requests'] / n:4.2f}  "
+              f"secs/search {st['secs'] / n:5.1f}  {dict(st)}")
+    return {p: dict(v) for p, v in stats.items()}, rows
+
+
 def main() -> int:
     out = sys.argv[1] if len(sys.argv) > 1 else "ab.json"
     country = m.egress_country()
@@ -53,6 +114,14 @@ def main() -> int:
     cfg = m.load_config()
     queries = [q for w in cfg["watches"] for q in m.watch_queries(w)]
     queries = queries[::max(1, len(queries) // n)][:n]   # spread over every watch
+    if os.environ.get("AB_MODE") == "retry":
+        t0 = time.time()
+        summary, rows = retry_experiment(queries)
+        print(f"done in {time.time() - t0:.0f}s")
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump({"built_at_unix": int(time.time()), "egress": country, "mode": "retry",
+                       "summary": summary, "rows": rows}, f, ensure_ascii=False)
+        return 0
 
     clients = {"requests": m.get_session(DOMAIN)}        # built + primed like production
     cs = creq.Session(impersonate="chrome")
