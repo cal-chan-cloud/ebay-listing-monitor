@@ -12,6 +12,9 @@ on:
       raw:
         description: "Also save raw HTML of the first N searches"
         default: "0"
+      queries:
+        description: "Ad-hoc searches instead of the watches' (';'-separated; 'query|k=v&k2=v2' adds URL params)"
+        default: ""
       ab:
         description: "Instead: A/B requests vs curl_cffi on N searches (0 = off)"
         default: "0"
@@ -46,6 +49,7 @@ jobs:
         env:
           CORPUS_LIMIT: ${{ inputs.limit }}
           CORPUS_RAW: ${{ inputs.raw }}
+          CORPUS_QUERIES: ${{ inputs.queries }}
         run: python tools/corpus.py corpus.json
 
       - name: A/B the HTTP client (requests vs curl_cffi)
