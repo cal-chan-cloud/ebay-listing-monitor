@@ -12,6 +12,11 @@ alike. It never alerts and never touches seen.db.
 AB_MODE=retry instead compares what to do after a 403, interleaved over N searches with one
 session per policy: retry at once ("plain"), re-prime the homepage first ("prime", the
 monitor's current behaviour minus its sleeps) or start a fresh primed session ("fresh").
+
+AB_MODE=group checks eBay's OR syntax as a way to cover several watches with ONE search:
+each GROUPS query (newest first, 240 per page) vs. each covered watch's own first query.
+It reports, per watch, how many of the newest listings the watch accepts from its own
+search also appear in the grouped search.
 """
 import json
 import os
@@ -101,6 +106,95 @@ def retry_experiment(queries, attempts=4):
     return {p: dict(v) for p, v in stats.items()}, rows
 
 
+# (grouped query, names of the watches it should cover); eBay OR syntax = "(a,b,c)".
+GROUPS = [
+    ("(186/196,232/091,218/203,105/086,sm191)",
+     ["Giratina V Alt Art 186/196 (Lost Origin)", "Mew ex 232/091 SIR (Paldean Fates)",
+      "Rayquaza VMAX Alt Art 218/203 (Evolving Skies)", "Mewtwo & Mew GX SM191 TAG TEAM (Black Star Promo)"]),
+    ("pokemon (giratina,mew,rayquaza,mewtwo) (186/196,232/091,218/203,sm191)",
+     ["Giratina V Alt Art 186/196 (Lost Origin)", "Mew ex 232/091 SIR (Paldean Fates)",
+      "Rayquaza VMAX Alt Art 218/203 (Evolving Skies)", "Mewtwo & Mew GX SM191 TAG TEAM (Black Star Promo)"]),
+    ("aquapolis (houndoom,slowking,azumarill,umbreon)",
+     ["Houndoom H11/H32", "Slowking H22/H32", "Azumarill H4/H32", "Umbreon H29/H32"]),
+    ("gx (blastoise,slowpoke,mewtwo) (215/236,218/236,sm191)",
+     ["Blastoise & Piplup GX 215/236", "Slowpoke & Psyduck GX 218/236", "Mewtwo & Mew GX SM191"]),
+    ("rayquaza (194/203,218/203,123/124,3/17)",
+     ["Rayquaza V Alt Art 194/203", "Rayquaza VMAX Alt Art 218/203", "Rayquaza EX 123/124", "Rayquaza 3/17 Holo"]),
+]
+
+
+def _get_page(session, url, stats, attempts=6):
+    for _ in range(attempts):
+        m._throttle_request()
+        stats["requests"] += 1
+        try:
+            r = session.get(url, headers={"Referer": f"https://{DOMAIN}/"}, timeout=40)
+        except Exception as e:
+            stats["error_" + type(e).__name__] += 1
+            continue
+        if r.status_code == 200 and not m._looks_blocked(r.text):
+            return r.text
+        stats["blocked"] += 1
+    return None
+
+
+def _accepted(watch, listings):
+    """Item ids (newest first) the watch's title/grade gates accept: a recall proxy."""
+    wanted = {g.replace(" ", "").lower() for g in watch.get("grades", [])}
+    return [x["item_id"] for x in listings
+            if not m.is_lot(x["title"])
+            and m.matches_filters(x["title"], watch.get("require"), watch.get("exclude"), watch.get("match_any"))
+            and m.classify_grade(x["title"]) in wanted]
+
+
+def group_experiment(cfg):
+    stats, rows = Counter(), []
+    session = _primed(stats)
+    watches = cfg["watches"]
+    for gq, names in GROUPS:
+        url = m.build_search_url(DOMAIN, gq).replace("_ipg=60", "_ipg=240")
+        text = _get_page(session, url, stats)
+        if text is None:
+            print(f"GROUP {gq!r}: blocked every attempt")
+            continue
+        group = parse(text, gq)
+        print(f"GROUP {gq!r}: {len(group)} items ({len(text)} chars)")
+        gids = {x["item_id"] for x in group}
+        for prefix in names:
+            w = next((w for w in watches if w["name"].startswith(prefix)), None)
+            if w is None:
+                print(f"  ?? no watch named {prefix!r}")
+                continue
+            q0 = m.watch_queries(w)[0]
+            t = _get_page(session, m.build_search_url(DOMAIN, q0), stats)
+            if t is None:
+                print(f"  {w['name'][:44]:44s} own search blocked")
+                continue
+            own = _accepted(w, parse(t, q0))
+            in_group = _accepted(w, group)
+            top = own[:10]
+            hit = sum(1 for i in top if i in gids)
+            print(f"  {w['name'][:44]:44s} own accepted {len(own):3d}, newest-10 found in group {hit}/{len(top)}, "
+                  f"all {sum(1 for i in own if i in gids)}/{len(own)}; group accepts {len(in_group)} for it")
+            rows.append({"group": gq, "watch": w["name"], "own": own, "in_group": in_group,
+                         "newest10_hit": hit, "newest10": len(top)})
+    # Location filter: LH_PrefLoc=1 (US only, what the monitor sends) vs 3 (North America?):
+    # where the first 60 results are located, to see whether Canadian sellers get in.
+    for q in ("mew ex 232/091 psa 10", "rayquaza vmax 218/203 evolving skies", "luffy op05-119 manga art"):
+        for loc in ("1", "3"):
+            url = m.build_search_url(DOMAIN, q).replace("LH_PrefLoc=1", "LH_PrefLoc=" + loc)
+            text = _get_page(session, url, stats)
+            if text is None:
+                print(f"PREFLOC={loc} {q!r}: blocked every attempt")
+                continue
+            res = parse(text, q)
+            regions = Counter(m.canon_region(x.get("location")) or "unknown" for x in res[:60])
+            print(f"PREFLOC={loc} {q!r}: {len(res)} items, first 60 by region {dict(regions)}")
+            rows.append({"prefloc": loc, "query": q, "regions": dict(regions), "n": len(res)})
+    print(f"requests: {dict(stats)}")
+    return dict(stats), rows
+
+
 def main() -> int:
     out = sys.argv[1] if len(sys.argv) > 1 else "ab.json"
     country = m.egress_country()
@@ -114,6 +208,12 @@ def main() -> int:
     cfg = m.load_config()
     queries = [q for w in cfg["watches"] for q in m.watch_queries(w)]
     queries = queries[::max(1, len(queries) // n)][:n]   # spread over every watch
+    if os.environ.get("AB_MODE") == "group":
+        summary, rows = group_experiment(cfg)
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump({"built_at_unix": int(time.time()), "egress": country, "mode": "group",
+                       "summary": summary, "rows": rows}, f, ensure_ascii=False)
+        return 0
     if os.environ.get("AB_MODE") == "retry":
         t0 = time.time()
         summary, rows = retry_experiment(queries)

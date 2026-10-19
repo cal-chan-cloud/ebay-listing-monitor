@@ -16,7 +16,7 @@ on:
         description: "Instead: A/B requests vs curl_cffi on N searches (0 = off)"
         default: "0"
       ab_mode:
-        description: "A/B experiment: client (requests vs curl_cffi) or retry (403 retry policies)"
+        description: "A/B experiment: client (requests vs curl_cffi), retry (403 retry policies) or group (OR searches)"
         default: "client"
 
 permissions:
