@@ -17,6 +17,11 @@ AB_MODE=group checks eBay's OR syntax as a way to cover several watches with ONE
 each GROUPS query (newest first, 240 per page) vs. each covered watch's own first query.
 It reports, per watch, how many of the newest listings the watch accepts from its own
 search also appear in the grouped search.
+
+AB_MODE=sweeps measures the configured sweeps (config "sweeps", plus "_trial_sweeps" variants)
+exactly as the monitor runs them: per sweep, results and the time span its newest-first page
+covers; per covered watch, the share of its own search's accepted listings listed within that
+span that the sweep also returned (recall, independent of the window size).
 """
 import json
 import os
@@ -195,6 +200,61 @@ def group_experiment(cfg):
     return dict(stats), rows
 
 
+def _own_ok(w, x):
+    t = x["title"]
+    g = m.classify_grade(t)
+    return (not m.is_lot(t) and not (m.is_bulk_or_sealed(t) and not w.get("allow_lots"))
+            and m.matches_filters(t, w.get("require"), w.get("exclude"), w.get("match_any"))
+            and g in {k.replace(" ", "").lower() for k in w.get("grades", [])}
+            and not (g == "ungraded" and m.is_played(t))
+            and m.passes_language(t, w.get("language", "english"))
+            and m.price_ok(x.get("price_low"), w)
+            and m.passes_region(x.get("location"), {"US", "CA"}, False))
+
+
+def sweeps_experiment(cfg):
+    trial = cfg.get("_trial_sweeps") or []
+    tasks = m.scan_tasks(cfg) + [dict(t, trial=True) for t in m.scan_tasks({**cfg, "sweeps": trial})]
+    tasks = [t for t in tasks if t["kind"] == "sweep"]
+    wmap = {w["name"]: w for w in cfg["watches"]}
+    own_cache, rows = {}, []
+    for t in tasks:
+        try:
+            page = m.fetch_listings(DOMAIN, t["query"], params=t["params"])
+        except Exception as e:
+            print(f"SWEEP {t['query']!r}: failed ({e})")
+            continue
+        times = [x["listed_at"] for x in page if x.get("listed_at")]
+        oldest = min(times) if times else None
+        span = (max(times) - oldest).total_seconds() / 3600 if times else None
+        ids = {x["item_id"] for x in page}
+        head = f"SWEEP{' (trial)' if t.get('trial') else ''} {t['query']!r} {t['params']}: {len(page)} items"
+        print("")
+        print(head + (f", newest-first span {span:.2f} h" if span is not None else ", no listing times"))
+        for name in t["watches"]:
+            w = wmap[name]
+            if name not in own_cache:
+                q0 = m.watch_queries(w)[0]
+                try:
+                    own_cache[name] = [x for x in m.fetch_listings(DOMAIN, q0, params={"LH_BIN": "1"}) if _own_ok(w, x)]
+                except Exception as e:
+                    print(f"  {name[:46]:46s} own search failed ({e})")
+                    own_cache[name] = None
+            own = own_cache[name]
+            if own is None:
+                continue
+            # listed inside the sweep page's span (a listing newer than its newest result was
+            # posted after the sweep was fetched, so it can't count as a miss)
+            inwin = [x for x in own if x.get("listed_at") and oldest and oldest <= x["listed_at"] <= max(times)]
+            hit = [x for x in inwin if x["item_id"] in ids]
+            miss = [x["title"][:70] for x in inwin if x["item_id"] not in ids][:3]
+            print(f"  {name[:46]:46s} own accepted {len(own):3d}, listed in window {len(inwin):3d}, "
+                  f"found {len(hit):3d}" + (f"  MISSED e.g. {miss}" if miss else ""))
+            rows.append({"sweep": t["query"], "trial": bool(t.get("trial")), "watch": name, "own": len(own),
+                         "in_window": len(inwin), "found": len(hit), "span_h": span, "missed": miss})
+    return rows
+
+
 def main() -> int:
     out = sys.argv[1] if len(sys.argv) > 1 else "ab.json"
     country = m.egress_country()
@@ -208,6 +268,12 @@ def main() -> int:
     cfg = m.load_config()
     queries = [q for w in cfg["watches"] for q in m.watch_queries(w)]
     queries = queries[::max(1, len(queries) // n)][:n]   # spread over every watch
+    if os.environ.get("AB_MODE") == "sweeps":
+        rows = sweeps_experiment(cfg)
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump({"built_at_unix": int(time.time()), "egress": country, "mode": "sweeps", "rows": rows},
+                      f, ensure_ascii=False, default=str)
+        return 0
     if os.environ.get("AB_MODE") == "group":
         summary, rows = group_experiment(cfg)
         with open(out, "w", encoding="utf-8") as f:

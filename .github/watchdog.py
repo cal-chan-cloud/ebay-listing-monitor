@@ -29,6 +29,16 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # repo root
 DB = os.path.join(HERE, "seen.db")
 
 
+def notify_user():
+    """config.json's notify_user (the owner's Discord id), or None."""
+    try:
+        with open(os.path.join(HERE, "config.json"), encoding="utf-8") as f:
+            who = json.load(f).get("notify_user")
+        return str(who) if who else None
+    except Exception:
+        return None
+
+
 def discord(msg):
     """Post the alert; True if Discord accepted it."""
     url = os.environ.get("DISCORD_WEBHOOK_URL", "")
@@ -41,6 +51,10 @@ def discord(msg):
         "color": 0xB71C1C,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }]}
+    who = notify_user()
+    if who:   # embed-only messages don't notify anyone; an @mention does
+        payload["content"] = f"<@{who}> eBay monitor watchdog"
+        payload["allowed_mentions"] = {"users": [who]}
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"})

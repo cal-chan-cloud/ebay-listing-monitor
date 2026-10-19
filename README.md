@@ -33,6 +33,7 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 - **Mewtwo & Mew GX SM191** — Sun & Moon Black Star Promo TAG TEAM full art (English; not the Unified Minds 71/222/236 versions; $75 floor; @mention when a PSA 10 lists under $1,500)
 - **Slowpoke & Psyduck GX 218/236** — Unified Minds TAG TEAM alternate full art (English; not the 35/217/239 versions; $100 floor)
 - **Blastoise & Piplup GX 215/236** — Cosmic Eclipse TAG TEAM alternate full art (English; not the 38/214/253 versions; $150 floor)
+- **Magikarp & Wailord GX 161/181** — Team Up TAG TEAM alternate full art (English; not the 160/181 full art, 183/181 rainbow, Japanese Tag Bolt or Chinese 161/150; $200 floor)
 - **Rayquaza V 194/203** — Evolving Skies alternate full art (not the VMAX alt art 218/203)
 - **Rayquaza VMAX 218/203** — Evolving Skies alternate art secret rare (English; $300 floor; @mention when a PSA 10 lists under $1,900)
 - **Rayquaza 3/17** — POP Series 1 (2004) Cosmos Holo Rare (holo only; non-holo excluded; also the zero-padded `003/017` spelling)
@@ -85,23 +86,53 @@ of whether any local machine is on:
   committed after each) and, when it finishes normally, **queues its own successor**
   (`gh workflow run`), so coverage is continuous (before that, the monitor sat idle ~20% of
   the time, with gaps up to 6 h). The cron stays as a backup; a cancelled or crashed job
-  doesn't requeue. Passes run **back to back**: `poll_interval_seconds` (30) is the pause
+  doesn't requeue. Passes run **back to back**: `poll_interval_seconds` (0) is the pause
   after a full pass ends, and the loop only ever sleeps until the next pass is due. Scans
   are serial (`scan_workers`: 1) behind a 2 s global request throttle
   (`min_request_interval_seconds`, +0-20% jitter), and each watch alerts as soon as its own
   searches return. From a GitHub runner ~40-50% of searches draw a 403 that the retry
-  clears, so a search costs ~4-6 s and a full pass of ~57 searches plus priority rounds takes
-  ~6-8 min; each pass logs its eBay outcomes and each loop its measured cadence. A pushed
+  clears, so a search costs ~4-6 s (~12 searches/min from one IP); the grouped sweeps below take
+  ~9 of those, and full passes the rest; each pass logs its eBay outcomes and each loop its
+  measured cadence. A pushed
   config/code change goes live at the next segment boundary. For true near-zero delay, run
   the loop on an always-on host instead (see "Local setup").
-- **Fast tier:** the **priority** watches (those with `price_alerts`, or an explicit
-  `"priority": true`) are scanned in rounds every `priority_interval_seconds` (90 in
-  config.json; off if absent or `0`), **including inside a full pass**, so a long full pass
-  can't starve them: they're rescanned about every 2-2.5 min while the rest come round every
-  ~6-8 min. Concentrating the extra scraping on the few watches that matter keeps the request
-  volume (and eBay soft-block risk) bounded. (Note: truly-underpriced cards can still sell
-  within seconds to snipers — faster polling catches the 1-3-min deals, not the sub-minute
-  ones, which only an instant-buy bot could win.)
+- **Sweeps (near-instant pings):** every watch is also covered by a grouped **sweep** — ONE
+  eBay OR search such as `(espeon,lugia,umbreon)`, newest first, 240 results, Buy It Now only —
+  whose results go through each covered watch's own rules (config `sweeps`). Sweeps holding a
+  price-target watch run every `sweep_priority_interval_seconds` (30), the rest every
+  `sweep_interval_seconds` (60), interleaved with the full passes and between them; a sweep's
+  240 newest results span 40 minutes to weeks (measured), so nothing new falls out of the
+  window between two sweeps. Group terms are names every genuine title carries (eBay matches
+  OR terms against title words literally, and returns NOTHING past ~10 alternatives in a
+  group). A sweep counts as one more query of each covered watch: its first run seeds
+  silently (credited on page evidence, so a quiet group's sweep isn't "fresh" forever), it
+  never completes a one-time baseline, and below-asking uses the reference the watch's own
+  last pass stored. eBay's listing time decides "new or backlog": a listing that went live
+  under 20 minutes ago pings even on a fresh query or right after a rules change, while a
+  sweep result listed over 6 hours ago slid in at the bottom of the window (another listing
+  ended) and seeds silently unless it is under a price target. One sweep page pings at most 8
+  new listings per watch (flood breaker). Each alert logs (and the embed shows) how long ago
+  eBay says the listing went live; pass summaries report the median listed→pinged delay, and
+  every ping is recorded in the `pings` table of `seen.db`.
+- **Price bands:** per `price_alerts` rule, a Buy-It-Now search of the watch's
+  `price_band_query` priced between the floor (`price_band_floor`, default the larger of
+  `min_price` and 40% of the target) and the target, 240 results, every
+  `price_band_interval_seconds` (600). Newest-first searches never see an OLD listing whose
+  price was cut under target; a band does (the cut pings once, as a 🔔 price-target alert).
+  Band pages come back unsorted and padded with other grades, so only listings that hit the
+  rule are processed and a band only ever raises target pings (never new/drop/below-asking).
+- **Full passes** of every watch's own queries (`max_queries_per_watch`) run back to back
+  (`poll_interval_seconds` 0) in the remaining request budget (~15-20 min per pass), with at
+  most 4 sweep/band searches between two watches so a slowed pace can't starve them: asking
+  references, price drops on the newest results, health checks, and titles the sweep terms
+  miss. The older per-watch priority rounds (`priority_interval_seconds`) are off (`0`) now
+  that sweeps cover those watches every 30 s.
+  (Note: truly-underpriced cards can still sell within seconds to snipers — this catches the
+  1-3-min deals, not the sub-minute ones, which only an instant-buy bot could win.)
+- **Played / damaged copies don't ping:** a raw listing whose title says Damaged/DMG, Heavily
+  or Moderately Played (HP/MP), Played, Poor or creased never alerts (`"exclude_played": false`
+  on a watch opts back in). Lightly Played (LP) still alerts; on slabs, condition words describe
+  the case and are ignored.
 - **Runner geography:** eBay localizes search results by the visitor's IP, and GitHub
   sometimes places the hosted runner outside the US (seen: Azure `mexicocentral`). eBay
   then serves a local-buyer page and the US/CA region gate matches nothing for that whole
@@ -114,6 +145,13 @@ of whether any local machine is on:
   eBay outage or layout change can't cause an endless requeue loop. A zero-match scan
   also logs, and puts in the health alert, which gate rejected the listings and where eBay
   said they were located.
+- **Pings:** every ping's push text leads with price + shipping, grade, how far under the
+  target/reference, Best Offer and how long ago eBay says it was listed (the embed shows
+  "Listed 3 minutes ago"); a "new" match listed over 6 h ago is labelled "📜 Newly matched
+  (listed N d ago)"; a listing at ≤50% of its reference carries a ⚠️ "unusually cheap" line;
+  the embed adds the total with shipping and the condition the title states, and shows the
+  location only when it isn't the US. Notices that need action (HEALTH DOWN, scans failing,
+  watch error, watchdog alerts) @mention `notify_user`; all-clears stay silent.
 - **Webhook:** stored as the encrypted GitHub Actions secret `DISCORD_WEBHOOK_URL`
   — it is **not** in the public code (`config.json`'s `discord_webhook_url` is left
   blank; the script reads the env var first).
@@ -298,9 +336,15 @@ Add entries to the `watches` array in `config.json`:
   ```
   A crossing is the *headline* alert for that listing (one message, not a duplicate
   drop/below-market ping); it pings **once per crossing** and re-arms only after the
-  price rises back above target. Omit `grade` to alert on any grade. Adding or changing
-  a rule re-baselines that watch's already-seen listings from their stored prices, so an
-  edit never @mentions listings that were already sitting under the new target.
+  price rises back more than 3% above target (so a Canadian listing's exchange-rate drift
+  can't re-fire it). Omit `grade` to alert on any grade. Adding or changing a rule
+  re-baselines that watch's already-seen listings from their last observed prices, so an
+  edit never @mentions listings that were already sitting under the new target. Every
+  target hit — a brand-new listing under target, an old one cut under it, or an older
+  listing a rules change newly matches (up to 3 per watch per pass) — uses the 🔔 format:
+  the push text reads like `🔔 $2,450.00 +$5.99 ship · PSA 10 · $250 (9.3%) under your
+  $2,700.00 target · Best Offer · listed 3 min ago · Mew ex 232/091 SIR`, with a large
+  picture. `price_band_query` / `price_band_floor` tune the price-band search (see above).
   `mention` goes in the message content with `allowed_mentions`, so it actually pings;
   use a Discord **user** id (right-click → Copy User ID with Developer Mode on).
 

@@ -1,8 +1,10 @@
 {
   "discord_webhook_url": "",
-  "_cadence_note": "Passes run back to back (2026-10-18): poll_interval_seconds is the pause after a full pass ends, priority_interval_seconds the gap between rounds of the price-target watches (also inside full passes). The request rate is set by min_request_interval_seconds alone; ~40-50% of searches from a GitHub runner draw a retried 403, so a search costs ~4-6 s, a full pass ~6-8 min and a priority round ~1 min.",
-  "poll_interval_seconds": 30,
-  "priority_interval_seconds": 90,
+  "_notify_user_note": "Discord user id @mentioned on notices that need action (HEALTH DOWN, scans failing, watch error, and the watchdog's alerts); all-clear notices stay silent.",
+  "notify_user": "209187722575872000",
+  "_cadence_note": "Passes run back to back (2026-10-18): poll_interval_seconds is the pause after a full pass ends (0: none), priority_interval_seconds the gap between per-watch rounds of the price-target watches (0: off; sweeps cover them). The request rate is set by min_request_interval_seconds alone; ~40-50% of searches from a GitHub runner draw a retried 403, so a search costs ~4-6 s, a full pass ~6-8 min and a priority round ~1 min. Since 2026-10-18 the price-target watches are covered by priority sweeps every 30 s instead of per-watch priority rounds (priority_interval_seconds 0).",
+  "poll_interval_seconds": 0,
+  "priority_interval_seconds": 0,
   "scan_workers": 1,
   "max_queries_per_watch": 2,
   "min_request_interval_seconds": 2.0,
@@ -14,6 +16,24 @@
   "allowed_regions": ["US", "CA"],
   "allow_unknown_region": false,
   "prune_days": 30,
+  "_sweeps_note": "Grouped searches (2026-10-18) for near-instant pings: each sweep is ONE eBay OR search, newest first, 240 results, Buy It Now only, whose results go through every listed watch's own rules. A sweep holding a price-target watch runs every sweep_priority_interval_seconds, the rest every sweep_interval_seconds; price bands (each price_alerts rule: price_band_query, Buy It Now, between the floor and the target) every price_band_interval_seconds catch OLD listings cut under a target; they only ever raise target pings. Full passes of every watch's own queries run in the remaining request budget. Terms are names every genuine title carries (eBay returns NOTHING past ~10 OR alternatives: 10 worked, 12 gave 0 results on 2026-10-18); measure changes with corpus.yml ab_mode=sweeps.",
+  "sweep_interval_seconds": 60,
+  "sweep_priority_interval_seconds": 30,
+  "price_band_interval_seconds": 600,
+  "sweeps": [
+    {"query": "(giratina,mew,mewtwo,rayquaza,oshawott)",
+     "watches": ["Giratina V Alt Art 186/196 (Lost Origin)", "Mew ex 232/091 SIR (Paldean Fates)", "Mewtwo & Mew GX SM191 TAG TEAM (Black Star Promo)", "Rayquaza VMAX Alt Art 218/203 (Evolving Skies)", "Oshawott 105/086 — SV White Flare Illustration Rare (English, 2025)", "Rayquaza V Alt Art 194/203 (Evolving Skies)", "Rayquaza EX 123/124 Full Art (Dragons Exalted)", "Rayquaza 3/17 Holo (POP Series 1)", "Giratina 10/127 — Platinum Holo Rare (English, 2009)"]},
+    {"query": "one piece (3rd,third) (anniversary,anniv)",
+     "watches": ["One Piece 3rd Anniversary Set (English, sealed)"]},
+    {"query": "(luffy,op05,st26)",
+     "watches": ["Luffy ST26-005 SP", "Luffy OP05-119 SEC (Alt / Manga Art)", "Luffy ST10-006 One Piece Day Dallas Promo"]},
+    {"query": "charizard (100/97,dragon)",
+     "watches": ["Charizard 100/97 — EX Dragon Secret Rare (English, 2003)"]},
+    {"query": "(squirtle,wartortle,growlithe,arcanine,gyarados,dragonair,ninetales,ninetails,articuno)",
+     "watches": ["Squirtle 007/018 McDonald's Promo (Japanese, 2002 e-Series)", "Squirtle No.007 — 1999 Japanese Squirtle Deck / Intro Pack (Japanese)", "Wartortle No.008 — 1999 Japanese Squirtle Deck / Intro Pack (Japanese)", "Growlithe #058 Vending Series 3 (Japanese, 1998)", "Light Arcanine No.059 — Neo Destiny (Japanese, 2001)", "Shining Gyarados 65/64 — Neo Revelation Secret Rare (English, 2001)", "Dark Dragonair 38/110 Reverse Holo — Legendary Collection (English, 2002)", "Morty's Ninetales 020/141 — Pokemon VS (Japanese, 2001)", "Articuno Holo #144 — 1998 Japanese Red/Green Quick Starter Gift Set"]},
+    {"query": "(houndoom,slowking,azumarill,piplup,psyduck,wailord,espeon,lugia,umbreon)",
+     "watches": ["Houndoom H11/H32 — Aquapolis Holo Rare (English, 2003)", "Slowking H22/H32 — Aquapolis Holo Rare (English, 2003)", "Azumarill H4/H32 — Aquapolis Holo Rare (English, 2003)", "Blastoise & Piplup GX 215/236 Alt Full Art (Cosmic Eclipse)", "Slowpoke & Psyduck GX 218/236 Alt Full Art (Unified Minds)", "Magikarp & Wailord GX 161/181 Alt Full Art (Team Up)", "Espeon No.196 Crossing the Ruins (JP Neo Discovery) Holo", "Espeon 1/75 Neo Discovery Holo Rare (English)", "Lugia 9/111 Neo Genesis Holo Rare (English)", "Lugia ex 031/PLAY — 4th Season Players Club Promo (Japanese, 2006)", "Karen's Umbreon 091/141 (Pokemon VS, JP)", "Umbreon H29/H32 — Aquapolis Holo Rare (English, 2003)"]}
+  ],
   "watches": [
     {
       "name": "Luffy ST26-005 SP",
@@ -70,12 +90,14 @@
       "_typical_price": "asking ~$899 raw / ~$4,000 PSA 10 (2026-09)",
       "_note": "Pokemon. Identify by number 186/196 (normalizes to '186196'): a contiguous substring unique to this card — the regular V is 130/196, and every Giratina VSTAR is 131/201/212. Require the bare name 'giratina' (NOT 'giratina v', whose norm 'giratinav' is a prefix of 'giratinavstar') + '186/196'; also exclude 'vstar' belt-and-suspenders. Excludes anchored ('cards lot' not bare 'lot', which would drop 'Holo TCG'->'holotcg'). Verified offline: 12/12 real titles matched, 14/14 confusables (regular V 130, VSTAR 131/201/212, Full Art 185/196, jumbo, master set/ETB/booster box, Japanese) rejected.",
       "queries": [
-        "giratina v alt art 186/196 lost origin",
         "giratina v 186/196 lost origin",
+        "giratina v alt art 186/196 lost origin",
         "giratina v alternate full art 186/196 lost origin",
         "giratina v full art 186/196 swsh11",
-        "pokemon giratina v 186/196 lost origin"
+        "pokemon giratina v 186/196 lost origin",
+        "giratina v lost origin psa 10"
       ],
+      "_search_review_note": "2026-10-18 search review: 'giratina v 186/196 lost origin' returns a superset of the old first query (10 vs 4 listings under 72 h), so it is pinned; 'giratina v lost origin psa 10' catches '#186 FULL ART/GIRATINA V' slab titles.",
       "rotate_queries": true,
       "_rotate_note": "queries[0] (best per-pass coverage, measured on the 2026-09 corpus) runs every scan; the second slot rotates through the rest, so every phrasing (incl. the PSA-10 wording) is searched once per cycle at the same request count.",
       "match_any": [["giratina", "186/196"], ["giratina", "lost origin", ["lost origin 186", "art 186", "186 psa", "186 bgs", "186 cgc"]]],
@@ -86,6 +108,7 @@
       "_language_note": "language 'english': German/French/Italian/Spanish/Portuguese prints share the English collector number, so the number alone does not gate language (2026-10-18 corpus: a Korean copy was alerting as this card). Negated mentions ('English NOT Japanese') are stripped before detection, so those titles still pass.",
       "language": "english",
       "_price_alerts_note": "@mention when a PSA 10 lists under $3,200 (raised from $2,700). Live market (2026): PSA 10 median ~$4,000, cheapest ~$2,850, so a sub-$3,200 PSA 10 is a below-median deal. 'below' is an absolute USD threshold (USD-priced listings only); pings once per crossing, re-arms if the price rises back above target. Also puts this watch on the fast-poll priority tier.",
+      "price_band_query": "giratina lost origin psa 10",
       "price_alerts": [
         {"grade": "psa10", "below": 3200, "mention": "209187722575872000"}
       ],
@@ -98,14 +121,15 @@
       "_typical_price": "asking ~$900 raw / ~$3,500 PSA 10 (2026-09)",
       "_note": "Pokemon. 232/091 is the Special Illustration Rare 'Bubble Mew'; the only sibling in the set is Mew ex 216/091 (Shiny UR), excluded by number (both 216/091 and 216/91 spellings). match_any also handles the common '232/91' leading-zero form (normalizes to '23291', distinct from '232091'), a bare '#232'+set+SIR path, and a numberless 'bubble mew'+set path. Require 'mew ex' not bare 'mew' (which substring-hits 'mewtwo', also excluded). Verified offline: 13/13 real titles matched, 13/13 confusables (216/091 both forms, Mewtwo, 151-set Mew ex 205/165 & 193/165, bulk/master-set/jumbo/sealed, Japanese 347/190) rejected.",
       "queries": [
-        "mew ex 232/091 special illustration rare",
         "mew ex 232/091 paldean fates",
+        "mew ex 232/091 special illustration rare",
         "pokemon mew ex 232/091 sir paldean fates",
         "bubble mew ex 232/091 paldean fates",
         "mew ex 232/91 paldean fates sir bubble mew",
         "pokemon mew ex 232/091 alt art paldean fates",
         "mew ex 232/091 psa 10"
       ],
+      "_search_review_note": "2026-10-18 search review: 'mew ex 232/091 paldean fates' found 24 listings under 72 h vs 3 for the old first query, so it is pinned.",
       "rotate_queries": true,
       "_rotate_note": "queries[0] (best per-pass coverage, measured on the 2026-09 corpus) runs every scan; the second slot rotates through the rest, so every phrasing (incl. the PSA-10 wording) is searched once per cycle at the same request count.",
       "match_any": [
@@ -121,6 +145,7 @@
       "_language_note": "language 'english': German/French/Italian/Spanish/Portuguese prints share the English collector number, so the number alone does not gate language (2026-10-18 corpus: German and Spanish copies were alerting as this card). Negated mentions ('English NOT Japanese') are stripped before detection, so those titles still pass. German PSA 10s at $2,796-2,800 sit just above the $2,700 @mention.",
       "language": "english",
       "_price_alerts_note": "Fire an @mention when a PSA 10 copy is listed below $2,700. 'below' is an absolute USD threshold (only USD-priced listings are compared); pings once per crossing and re-arms only if the price rises back above target.",
+      "price_band_query": "mew ex psa 10",
       "price_alerts": [
         {"grade": "psa10", "below": 2700, "mention": "209187722575872000"}
       ],
@@ -138,6 +163,8 @@
         "mewtwo mew gx tag team sm191 black star promo",
         "mewtwo and mew gx sm191 full art"
       ],
+      "rotate_queries": true,
+      "_search_review_note": "2026-10-18 search review: rotation runs the tail queries (one had 28 matches the first two never returned).",
       "_queries_note": "First two run every scan: the plain promo search was strongest for raw copies (21 raw + 15 PSA 10), the PSA search returned 54 PSA 10s. Queries avoid '&' (it's stripped by matching anyway).",
       "require": ["mewtwo", "sm191"],
       "exclude": ["sequential"],
@@ -146,6 +173,7 @@
       "language": "english",
       "_min_price_note": "$75 floor: damaged/HP genuine copies still ask ~$100-120, and this card is widely faked.",
       "_price_alerts_note": "@mention when a PSA 10 lists under $1,500 (set 2026-10-08). Market that day: 54 PSA 10 asks, cheapest $1,825, typical ~$2,500, so sub-$1,500 is ~18% under the cheapest ask. Item price in USD (shipping not included); auctions are excluded from this watch. Pings once per crossing, re-arms if the price rises back above target. Also puts this watch on the fast-poll priority tier.",
+      "price_band_query": "mewtwo sm191 psa 10",
       "price_alerts": [
         {"grade": "psa10", "below": 1500, "mention": "209187722575872000"}
       ],
@@ -162,6 +190,8 @@
         "slowpoke psyduck gx 218/236 psa 10",
         "slowpoke psyduck gx alternate full art 218"
       ],
+      "rotate_queries": true,
+      "_search_review_note": "2026-10-18 search review: rotation runs the PSA 10 tail query, the only one that returned the '#218 FULL ART' slabs.",
       "_queries_note": "First two run every scan: the number search, plus 'full art unified minds' (17 genuine 218 matches in the probe; it also catches PSA label titles that say '#218' instead of '218/236'). Queries avoid '&' (stripped by matching anyway).",
       "match_any": [["slowpoke", "psyduck", "218/236"],
                     ["slowpoke", "psyduck", ["unified minds 218", "minds 218", "218 full art", "art 218", "218 slowpoke", "218 psa", "218 bgs", "218 cgc"]]],
@@ -196,6 +226,29 @@
       "language": "english",
       "_min_price_note": "$150 floor: damaged genuine 215s ask ~$250; a '215/236' at $62.25 matches the 214's price (~$65-85), so it's mislabeled or fake.",
       "min_price": 150,
+      "max_price": null
+    },
+    {
+      "name": "Magikarp & Wailord GX 161/181 Alt Full Art (Team Up)",
+      "_typical_price": "asking ~$400-725 raw / ~$4,000 PSA 10 (2026-10)",
+      "_note": "Pokemon, English Sun & Moon Team Up (2019) TAG TEAM — the ALTERNATE full art 161/181 ('161181'). Siblings: 66/181 regular, 160/181 regular full art (~$110-170 raw, sometimes mislabeled 161), 183/181 rainbow secret; Japanese Tag Bolt 098/095 SR, 099/095 SR alt art, 019/095; and the Simplified-Chinese CSM2a Shining Synergy 161/150 (2023), whose PSA labels read just '#161'. Signatures: (1) names + 161/181; (2) PSA's English label form ('2019 Pokemon Sun & Moon Team Up #161 FA Magikarp & Wailord GX PSA 10', '... Full Art - PSA 10 #161', '... Team Up Full Alt Art #161 PSA 10'): 'team up' is required (the Chinese labels never say it) and the bare 161 is anchored to a neighbouring token so a cert number can't satisfy it; (3) alternate-art wording + 'team up' (only the 161 is an English alt art). Probe 2026-10-18: 236 listings across 5 searches.",
+      "queries": [
+        "magikarp wailord gx 161/181",
+        "magikarp wailord gx 161 psa 10",
+        "magikarp wailord gx alternate art team up",
+        "magikarp wailord gx full art team up"
+      ],
+      "_queries_note": "First two run every scan: the number search and the PSA 10 search (PSA labels mostly say '#161' without '/181'). Queries avoid '&'.",
+      "match_any": [["magikarp", "wailord", "161/181"],
+                    ["magikarp", "wailord", "team up", ["up 161", "fa 161", "161 fa", "161 full", "161 magikarp", "161 sun", "gx 161", "pokemon 161", "art 161", "161 psa", "161 bgs", "161 cgc", "psa 10 161"]],
+                    ["magikarp", "wailord", "team up", ["alternate art", "alt art", "alternate full art", "alt full art", "alt fa", "full alt art", "alternative art"]]],
+      "exclude": ["160/181", "66/181", "183/181", "rainbow", "161/150", "csm2a", "shining synergy", "chinese", "tag bolt", "099/095", "098/095", "019/095", "gold foil", "metal", "gyarados"],
+      "_exclude_note": "Siblings and look-alikes: 160/181 full art, 66/181 regular, 183/181 rainbow, the Chinese 161/150 (CSM2a / Shining Synergy), Japanese Tag Bolt prints, gold-foil/metal fakes and the fan-made 'Magikarp & Gyarados GX 161/181'.",
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "english: the Japanese Tag Bolt and Chinese CSM2a prints are listed as Japanese/Chinese.",
+      "language": "english",
+      "_min_price_note": "$200 floor: genuine raw 161s ask ~$400+; 161/181 titles at $0.99-139 are fakes, auctions' opening bids or the 160 full art mislabeled.",
+      "min_price": 200,
       "max_price": null
     },
     {
@@ -236,6 +289,7 @@
       "language": "english",
       "_min_price_note": "$300 floor: genuine raw copies ask ~$1,000+ (an LP copy was $799); a $140 '218/203' listing seen on 2026-10-01 is fake/proxy or scam bait.",
       "_price_alerts_note": "@mention when a PSA 10 lists under $1,900 (set 2026-10-01). Live market that day: 62 PSA 10 Buy-It-Now listings, cheapest $2,099.99 (~$2,110 with shipping), next tier $2,250, median ~$2,900, so sub-$1,900 is ~10% under the cheapest ask. 'below' is the item price in USD (shipping not included); auctions are excluded from this watch, so a running bid never triggers it. Pings once per crossing, re-arms if the price rises back above target. Also puts this watch on the fast-poll priority tier.",
+      "price_band_query": "rayquaza vmax evolving psa 10",
       "price_alerts": [
         {"grade": "psa10", "below": 1900, "mention": "209187722575872000"}
       ],
@@ -248,10 +302,12 @@
       "_note": "Pokemon vintage (2004 POP Series 1 promo, Cosmos Holo Rare). Identify by number 3/17 + the set (pop series / pop 1). 3/17 normalizes to '317', a short substring that collides with e.g. 13/17 ('1317') and 3/170 ('3170'), so pairing with 'pop series' is required for precision. 3/17 IS inherently the holo card (no non-holo print), so we don't require the word 'holo' (which would also match 'non-holo' via substring and hurt recall) — instead we exclude 'non holo' to drop any mislabels. Verified offline: 7/7 real titles matched (incl. terse + PSA 10), 5/5 confusables (non-holo, 13/17, 3/170, Charizard 3/17, proxy) rejected. NOTE: PSA 8/9 (common for vintage) classify as other_graded and won't alert under the house grade set.",
       "queries": [
         "rayquaza 3/17 pop series 1 holo",
-        "pokemon rayquaza 3/17 holo pop series 1",
+        "rayquaza 003/017 pop series 1",
         "rayquaza 3/17 holo rare pop series 1 promo",
         "2004 pokemon pop series 1 rayquaza 3/17 holo"
       ],
+      "rotate_queries": true,
+      "_search_review_note": "2026-10-18 search review: 31% of genuine titles say '003/017' (the old second query was the first one + 'pokemon'); rotation also runs the tail query that found more matches than the first.",
       "match_any": [["rayquaza", ["3/17", "003/017"], ["pop series", "pop 1", "series 1", "pop 3/17", "pop 003/017"]],
                     ["rayquaza", ["series 1 3 rayquaza", "series 1 holo rayquaza 3"]]],
       "_match_note": "'003/017' (norm '003017', which does NOT contain '317') was missing: 19 of 52 genuine US listings on 2026-10-18 used it. 2nd signature = PSA/CGC label form ('POP SERIES 1 #3 RAYQUAZA-HOLO').",
@@ -290,6 +346,7 @@
         "pokemon espeon no 196 neo discovery holo japanese",
         "espeon 196 遺跡をこえて"
       ],
+      "rotate_queries": true,
       "match_any": [
         ["espeon", "196", ["crossing the ruins", "neo discovery", "neo2"]],
         ["espeon", "crossing the ruins"]
@@ -308,7 +365,6 @@
       "queries": [
         "karens umbreon 091/141",
         "karens umbreon vs japanese holo",
-        "カリンのブラッキー vs",
         "karens umbreon 091 1st edition"
       ],
       "match_any": [
@@ -332,6 +388,8 @@
         "growlithe vending series iii glossy old back",
         "ガーディ vending series 3 グロース"
       ],
+      "rotate_queries": true,
+      "_search_review_note": "2026-10-18 search review: rotation runs 'vending series iii', which alone surfaced a $15,600 '#58 GROWLITHE PSA 10'.",
       "require": ["growlithe", "vending", ["series 3", "series iii", "58"]],
       "exclude": ["sticker", "prism", "carddass"],
       "_exclude_note": "'sticker'/'prism': the 2000 'Vintage Vending Machine Prism Sticker' Growlithe #058 is a different product (it fired a false alert); a slab title can mention a 'PSA sticker', so this stays per-watch, not global. 'carddass': Bandai's 1996-97 Carddass vending #58 Growlithe also says 'vending' + '58'.",
@@ -378,6 +436,7 @@
       "grades": ["ungraded"],
       "language": "english",
       "_price_alerts_note": "@mention when a sealed set lists under $500 (lowered from $600 on 2026-10-16; that day the cheapest Buy-It-Now set was $599.99 with ~25 asks at $600-720, so sub-$500 is ~17%+ under the cheapest ask). The $425 min_price floor makes the alert window $425-499. No grade key -> applies to the watch's only bucket (ungraded). Fires once per crossing; re-arms if the price rises back above target.",
+      "price_band_query": "one piece 3rd anniversary set",
       "price_alerts": [
         {"below": 500, "mention": "209187722575872000"}
       ],
@@ -391,11 +450,12 @@
       "_note": "Pokemon, English vintage (2001 Neo Discovery, WOTC, Holo Rare) — the ENGLISH counterpart of the Japanese Neo Discovery Espeon No.196 (its own separate watch); this one is English #1/75. Identify by espeon + neo discovery + '1/75' (norm '175'). The 1/75 number is SHARED by WOTC's German/French/Italian prints, so those language markers are excluded to keep it English (terse English listings carry no language word -> 'unknown' -> kept; language 'english' additionally drops JP/CJK). exclude 'dark'/'destiny' guards vs Neo DESTINY 'Dark Espeon' (different set/number). '175' can in theory collide with a '$175' price, but live data shows real JP No.196 listings never carry '1/75' (0 '196' leak). Verified offline (8/8 English matched; JP 196, Dark Espeon, Umbreon 5/75, modern Espeon ex, Neo Genesis 1/111, German/French/Italian, and a two-number lot all rejected) and live-scraped (89 English matches, 0 '196' leak). PSA 9 IS tracked for this watch only (added 2026-10-01 by request; qualified 'PSA 9 OC/MK/...' slabs stay other_graded); PSA 8 and CGC 8/9 still bucket other_graded and won't alert. Note: 1st Edition and Unlimited share the number, so they share the grade buckets (a 1st Edition PSA 9 asks ~4x an Unlimited one).",
       "queries": [
         "pokemon espeon neo discovery 1/75 english",
-        "espeon 1/75 neo discovery unlimited holo rare",
-        "espeon neo discovery psa 9",
         "espeon 1/75 neo discovery holo rare",
+        "espeon neo discovery psa 9",
+        "espeon 1/75 neo discovery unlimited holo rare",
         "espeon neo discovery 1st edition 1/75 holo"
       ],
+      "_search_review_note": "2026-10-18 search review: the never-run 'espeon 1/75 neo discovery holo rare' found 10 of 16 recent listings, so it replaces the narrower '...unlimited...' as the second query (the PSA 9 search stays third, every scan).",
       "max_queries": 3,
       "_queries_note": "max_queries 3 (this watch only, +1 request per full scan): the two raw-focused searches keep running every scan and 'espeon neo discovery psa 9' adds the PSA 9 slabs, which are mostly titled in PSA's label form without '1/75'.",
       "match_any": [["espeon", "neo discovery", "1/75"],
@@ -455,6 +515,7 @@
       "_typical_price": "asking ~$94 raw / ~$1,200 PSA 10 (2026-09)",
       "_note": "Pokemon, English (2025 Scarlet & Violet 'White Flare', SV11W). Oshawott Illustration Rare, secret-numbered 105/086 (105 > the 86-card base = an IR beyond the set size). Identify by oshawott + the FULL number '105/086' (norm '105086'): bare '105' is hugely collision-prone, but 105/086 is unique to this card — verified live that no Black Bolt (the paired sister set) or other-set Oshawott carries 105/086 (0 of 140 scraped mentioned Black Bolt; Oshawott is a White Flare card), so NO set-name token is required and terse 'Oshawott 105/086' / 'Oshawott [WHT - 105/086]' listings still match. Rejects the base Oshawott (lower number), sibling IRs (Dewott 106/086), same-number other-Pokemon (Samurott 105/086), other-set Oshawott (Journey Together 105/159, Paldea 105/091), and multi-card lots (is_lot on 105/086 + 106/086). English SV sets share collector numbers across EU languages, so language 'english' + german/french/etc. excludes scope to the English print (the Espeon/Lugia precedent). Verified offline (FN=0, FP=0 — the one battery 'FP' was a non-existent Black Bolt Oshawott) and live-scraped (140 distinct -> 69 accepted, all genuine White Flare 105/086, 0 FP, terse/WHT-abbreviated forms caught). PSA 9 / CGC 9 slabs -> other_graded, won't alert (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "_price_alerts_note": "@mention when a PSA 10 lists under $700. Typical PSA 10 is ~$1,100-1,250, so sub-$700 is an exceptional deal (0 current listings under it at add time, so no baseline flood). 'below' is an absolute USD threshold (USD-priced listings only); pings once per crossing, re-arms if the price rises back above target. Also puts this watch on the fast-poll priority tier.",
+      "price_band_query": "oshawott psa 10",
       "price_alerts": [
         {"grade": "psa10", "below": 700, "mention": "209187722575872000"}
       ],
@@ -504,8 +565,7 @@
       "queries": [
         "wartortle no.008 squirtle deck intro pack japanese",
         "1999 pokemon japanese squirtle deck wartortle",
-        "wartortle squirtle deck vhs intro pack 008",
-        "カメール イントロパック ゼニガメデッキ"
+        "wartortle squirtle deck vhs intro pack 008"
       ],
       "require": ["wartortle", ["squirtle deck", "intro pack", "intro deck", "vhs"]],
       "exclude": ["007"],
@@ -525,6 +585,7 @@
         "light arcanine no.059 holo japanese 2001",
         "pokemon japanese light arcanine neo destiny holo rare"
       ],
+      "rotate_queries": true,
       "require": ["light arcanine", ["059", "no.59", "no. 59", "holo 59", "arcanine 59", "59 holo", "darkness and to light", "darkness, and to light", "darkness & to light", "neo 4"]],
       "exclude": ["12/105"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
@@ -650,10 +711,11 @@
       "_note": "Pokemon, English (2002 Legendary Collection, the REVERSE-HOLO variant of Dark Dragonair 38/110). Identity: 'dark dragonair' + '38/110' + 'reverse'. The 'reverse' token is intentional — Legendary Collection printed both a regular and a reverse-holo (mirror-foil) version of each card, and this watch tracks the reverse per request; regular/non-specified listings are deliberately dropped (the regular is a different, cheaper card). 'reverse' catches 'Reverse Holo'/'Reverse Foil'. Rejects the regular Dark Dragonair, Dark Dragonite 22/110, Jungle Dragonair, and (language 'english' + EU excludes) foreign prints. Verified offline FN=0/FP=0 and live-scraped (100 distinct -> 15 accepted, all genuine reverse-holo 38/110; 34 regular/ambiguous listings correctly excluded). Note: a genuine reverse-holo listing that omits the word 'reverse' would be missed (precision-first). PSA 8/9 & CGC 9 -> other_graded (raw + PSA10/BGS10/BGS9.5/CGC10 only).",
       "queries": [
         "dark dragonair 38/110 legendary collection reverse holo",
-        "dark dragonair reverse holo legendary collection 2002",
+        "dark dragonair legendary collection 38 reverse",
         "pokemon dark dragonair 38/110 reverse holo",
-        "dark dragonair legendary collection 38 reverse"
+        "dark dragonair reverse holo legendary collection 2002"
       ],
+      "_search_review_note": "2026-10-18 search review: 'dark dragonair legendary collection 38 reverse' is the only query that returns the number-less CGC 10, so it is second.",
       "match_any": [["dark dragonair", "38/110", "reverse"], ["dark dragonair", "legendary", "reverse"]],
       "_match_note": "2nd signature: slab labels often drop the number ('CGC 10 Dark Dragonair Legendary Collection Reverse Holo 38', '... #38 DARK DRAGONAIR-REVERSE FOIL PSA 8'); Legendary Collection has only one Dark Dragonair.",
       "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
@@ -689,8 +751,7 @@
       "queries": [
         "morty's ninetales vs series japanese",
         "pokemon japanese vs morty's ninetales",
-        "morty ninetales 020/141 pokemon vs 1st edition",
-        "モーティ キュウコン vs"
+        "morty ninetales 020/141 pokemon vs 1st edition"
       ],
       "match_any": [["morty", ["ninetales", "ninetails"]], [["ninetales", "ninetails"], ["020/141", "20/141"]]],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],

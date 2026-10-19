@@ -16,6 +16,7 @@ import ebay_monitor as m
 # Real fetch_all captured before any test mocks m.fetch_all (it calls the module-global
 # fetch_listings by name, so patching m.fetch_listings still applies to this reference).
 _REAL_FETCH_ALL = m.fetch_all
+_REAL_SEND_DISCORD = m.send_discord
 # Other real functions later tests need after earlier sections mocked them.
 _REAL = {k: getattr(m, k) for k in ("fetch_all", "fetch_listings", "fetch_sold_sales", "get_market_prices",
                                     "active_asking_reference", "send_discord", "send_simple_discord",
@@ -387,7 +388,7 @@ m.send_discord = lambda url, name, lst, grade, event="new", old_price_str=None, 
     market_price=None, **kw: \
     sends.append((event, lst["item_id"], old_price_str, lst["price_str"], drop_pct))
 health = []
-m.send_simple_discord = lambda url, title, text, color: health.append((title, text))
+m.send_simple_discord = lambda url, title, text, color, **k: health.append((title, text))
 
 def run(fixtures, **kw):
     m.fetch_listings = lambda d, q, **k: list(fixtures)
@@ -861,7 +862,10 @@ ok("pa: crossing pings", _xr and _xr[0]["mention"] == _MENT)
 ok("pa: crossing baselines stored price",
    paconn.execute("SELECT price FROM seen WHERE item_id='x1'").fetchone()[0] == 2650)
 ok("pa: no re-ping stays below", [x for x in _parun([_PL("x1", 2640)]) if x["id"] == "x1"] == [])
-_parun([_PL("x1", 2750)])                     # rises above target -> re-arm
+_parun([_PL("x1", 2750)])                     # 1.9% above target: inside the 3% band -> still armed off
+ok("pa: a rise within 3% of the target doesn't re-arm (exchange-rate drift can't re-fire)",
+   paconn.execute("SELECT price_alerted FROM seen WHERE item_id='x1'").fetchone()[0] == 1)
+_parun([_PL("x1", 2800)])                     # 3.7% above target -> re-arm
 ok("pa: re-armed on rise",
    paconn.execute("SELECT price_alerted FROM seen WHERE item_id='x1'").fetchone()[0] == 0)
 ok("pa: re-pings second crossing",
@@ -1167,7 +1171,7 @@ m.time.sleep = lambda s: None          # fetch_all jitter / webhook pacing: no r
 _X = []                                # (event, item_id, kwargs)
 _N = []                                # simple (health/notice) messages
 m.send_discord = lambda url, name, lst, grade, **k: _X.append((k.get("event", "new"), lst["item_id"], k))
-m.send_simple_discord = lambda url, title, text, color: _N.append((title, text))
+m.send_simple_discord = lambda url, title, text, color, **k: _N.append((title, text))
 m.get_market_prices = lambda *a, **k: {}
 m.active_asking_reference = lambda *a, **k: {}
 
@@ -1384,6 +1388,266 @@ ok("...and no 'below' ping on the next pass either", _scan_spec(_cfg(_gw), _gc,
    {"qa": [L("a0", "$150.00", 150.0)], "qc": [L("o1", "$85.00", 85.0)]}) == [])
 m.active_asking_reference = _sv_aar
 
+print("== listing times, Buy-It-Now-only searches, sweep config checks ==")
+_now_lt = m.datetime(2026, 10, 19, 0, 58, tzinfo=m.timezone.utc)                  # 17:58 PDT
+check("eBay's 'Oct-18 17:57' (Pacific) -> UTC", m._parse_listed_at("Located in United States | Oct-18 17:57 |", _now_lt),
+      m.datetime(2026, 10, 19, 0, 57, tzinfo=m.timezone.utc))
+check("...no year shown: a December stamp seen in January is last year",
+      m._parse_listed_at("Dec-31 23:10", m.datetime(2027, 1, 1, 9, 0, tzinfo=m.timezone.utc)),
+      m.datetime(2027, 1, 1, 7, 10, tzinfo=m.timezone.utc))
+check("...no stamp -> None", m._parse_listed_at("Located in United States"), None)
+check("OR groups count each alternative as a relevance token",
+      m._query_tokens("aquapolis (houndoom,slowking)"), ["aquapolis", "houndoom", "slowking"])
+_bin_calls = []
+_sv_fl_bin = m.fetch_listings
+m.fetch_listings = lambda d, q, **k: (_bin_calls.append(k.get("params")), m._Results())[1]
+_REAL_FETCH_ALL("www.ebay.com", {"name": "w", "queries": ["a"]}, bin_only=True)
+_REAL_FETCH_ALL("www.ebay.com", {"name": "w", "queries": ["a"]}, bin_only=True, sold=True)
+_REAL_FETCH_ALL("www.ebay.com", {"name": "w", "queries": ["a"]})
+check("Buy It Now only for active searches of auction-less watches (never for sold comps)",
+      _bin_calls, [{"LH_BIN": "1"}, None, None])
+m.fetch_listings = _sv_fl_bin
+_cap_lt = []
+_sv_pw_lt = m._post_webhook
+m._post_webhook = lambda url, payload, **k: _cap_lt.append(payload)
+_REAL_SEND_DISCORD("https://x", "W", {**L("lt1", "$5.00", 5.0), "listed_at": _now_lt}, "ungraded")
+m._post_webhook = _sv_pw_lt
+check("the embed shows when it was listed (Discord relative time)",
+      [f["value"] for f in _cap_lt[0]["embeds"][0]["fields"] if f["name"] == "Listed"], [f"<t:{int(_now_lt.timestamp())}:R>"])
+_vw = m.validate_config({"watches": [{"name": "A", "queries": ["a"], "require": ["x"], "grades": ["ungraded"]}],
+                         "sweeps": [{"query": "x (a,b", "watches": ["A", "Z"]}, {"watches": ["A"]}]})
+ok("sweep config checks: unbalanced parentheses, unknown watch, missing query",
+   any("unbalanced" in w for w in _vw) and any("unknown watch 'Z'" in w for w in _vw)
+   and any("non-empty 'query'" in w for w in _vw))
+
+print("== ping format: targets, stale listings, too-cheap warning, embed details ==")
+_cap_pf = []
+_sv_pw_pf = m._post_webhook
+m._post_webhook = lambda url, payload, **k: _cap_pf.append(payload)
+_pf_l = {**L("pf1", "$2,450.00", 2450.0, title="PSA 10 Mew ex 232/091 Paldean Fates"),
+         "shipping": "+$5.99 delivery", "format": "Buy It Now or Best Offer", "image": "https://i/x.jpg",
+         "listed_at": m.datetime.now(m.timezone.utc) - m.timedelta(minutes=3)}
+_REAL_SEND_DISCORD("https://x", "Mew ex 232/091 SIR (Paldean Fates)", _pf_l, "psa10", mention="U", alert_threshold=2700)
+_pf = _cap_pf[-1]
+ok("a NEW listing under target uses the target format (not a plain 🆕)",
+   _pf["embeds"][0]["author"]["name"].startswith("🔔  Price target hit (new listing)"))
+check("...and the push text leads with what decides it",
+      _pf["content"], "<@U> 🔔 $2,450.00 +$5.99 ship · PSA 10 · $250 (9.3%) under your $2,700.00 target"
+                      " · Best Offer · listed 3 min ago · Mew ex 232/091 SIR")
+ok("...with the big picture", _pf["embeds"][0].get("image") == {"url": "https://i/x.jpg"})
+check("...and the all-in total", [f["value"] for f in _pf["embeds"][0]["fields"] if f["name"] == "Total with shipping"],
+      ["$2,455.99"])
+ok("...US location isn't repeated on every ping", not any(f["name"] == "Location" for f in _pf["embeds"][0]["fields"]))
+_REAL_SEND_DISCORD("https://x", "Mew ex 232/091 SIR (Paldean Fates)", dict(_pf_l, price_str="$2,600.00", price_low=2600.0),
+                   "psa10", event="price_alert", old_price_str="$2,900.00", mention="U", alert_threshold=2700)
+ok("a cut under target says what it was cut from",
+   "(cut from $2,900.00)" in _cap_pf[-1]["embeds"][0]["author"]["name"])
+_REAL_SEND_DISCORD("https://x", "Azumarill H4/H32 — Aquapolis", {**L("pf2", "$900.00", 900.0, title="Azumarill H4 NM"),
+                   "listed_at": m.datetime.now(m.timezone.utc) - m.timedelta(days=54), "location": "Canada"}, "ungraded")
+_pf2 = _cap_pf[-1]["embeds"][0]
+ok("a 'new' match listed 54 days ago is labelled an older listing, not 'newly listed'",
+   _pf2["author"]["name"].startswith("📜  Newly matched (listed 54 d ago)"))
+ok("...a non-US location is shown", any(f["value"] == "📍 Canada" for f in _pf2["fields"]))
+ok("...and the title's condition", any(f["name"] == "Condition (title)" and f["value"] == "NM" for f in _pf2["fields"]))
+_REAL_SEND_DISCORD("https://x", "W", L("pf3", "$40.00", 40.0), "ungraded", market_price=200.0, market_kind="ask")
+ok("a listing at <=50% of the reference carries a scam/mislabel warning",
+   "⚠️ **Unusually cheap** (20% of asking)" in _cap_pf[-1]["embeds"][0]["description"])
+_REAL["send_simple_discord"]("https://x", "⚠️ eBay monitor health", "down", 1, mention="U")
+ok("health notices @mention the owner", _cap_pf[-1].get("content", "").startswith("<@U>")
+   and _cap_pf[-1].get("allowed_mentions") == {"users": ["U"]})
+m._post_webhook = _sv_pw_pf
+print("== an under-target listing surfaced by a rules edit pings (labelled), capped ==")
+_kc2 = _db("backlogtarget")
+_kw2 = {"name": "KT", "require": ["232/091"], "grades": ["psa10"], "language": "any", "min_price": 2600,
+        "price_alerts": [{"grade": "psa10", "below": 2700, "mention": "U"}]}
+_scan(_cfg(_kw2), _kc2, {"KT": [_PL("kt0", 3000)]})                 # seeded first run
+_kw2["min_price"] = 300                                             # rules edit: cheaper copies now match
+_r = _scan(_cfg(_kw2), _kc2, {"KT": [_PL("kt0", 3000)] + [_PL(f"kt{i}", 2000 + i) for i in range(1, 6)]})
+check("the edit pass pings up to 3 under-target backlog listings with the @mention, seeds the rest",
+      sorted((x[1], x[2].get("mention")) for x in _r), [("kt1", "U"), ("kt2", "U"), ("kt3", "U")])
+
+print("== grouped sweeps + price bands (fast tasks) ==")
+_SW_PAGES, _fl_calls, _fa_calls = {}, [], []
+_sv_tasks = (m.fetch_listings, m.fetch_all, m.active_asking_reference)
+def _fl_fake(domain, q, max_attempts=4, sold=False, worldwide=False, params=None):
+    _fl_calls.append((q, dict(params or {})))
+    r = m._Results(dict(x) for x in _SW_PAGES.get(q, []))
+    r.page_ok = True
+    return r
+def _fa_fake(fixtures):
+    def fa(d, w, **k):
+        _fa_calls.append(w["name"])
+        r = m._Results(dict(x, _q={"own"}) for x in fixtures.get(w["name"], []))
+        r.page_ok, r.q_ok = True, frozenset({"own"})
+        return r
+    return fa
+def _tscan(cfg, c, fixtures=None, **kw):
+    m.fetch_listings = _fl_fake
+    m.fetch_all = _fa_fake(fixtures or {})
+    _X.clear(); _N.clear(); _fl_calls.clear(); _fa_calls.clear()
+    m.scan_once(cfg, c, **kw)
+    return [(x[0], x[1], x[2].get("mention")) for x in _X]
+_SQ = "luffy (op05-119,st26-005)"
+_swa = {"name": "SA", "queries": ["own"], "require": ["op05-119"], "grades": ["ungraded"]}
+_swb = {"name": "SB", "queries": ["own"], "require": ["st26-005"], "grades": ["ungraded"]}
+_tcfg = _cfg(_swa, _swb, sweeps=[{"query": _SQ, "watches": ["SA", "SB", "NOPE"]}], sweep_interval_seconds=60)
+_tsk = m.scan_tasks(_tcfg)
+check("a sweep task covers the known watches, 240 per page, Buy It Now only",
+      [(t["kind"], t["watches"], t["params"]) for t in _tsk], [("sweep", ["SA", "SB"], {"_ipg": "240", "LH_BIN": "1"})])
+_tc = _db("sweeps")
+m.TASK_CLOCK.clear()
+_SW_PAGES[_SQ] = [L("old1", "$50.00", 50.0, title="Luffy OP05-119 Manga English")]
+_scan_fx = {"SA": [L("a1", "$40.00", 40.0, title="Luffy OP05-119 Manga English")],
+            "SB": [L("b1", "$30.00", 30.0, title="Luffy ST26-005 SP")]}
+ok("first full pass: the sweep runs too, everything seeds silently", _tscan(_tcfg, _tc, _scan_fx) == [])
+ok("...the sweep ran before the watches' own searches", _fl_calls and _fl_calls[0][0] == _SQ)
+_SW_PAGES[_SQ] = [L("old1", "$50.00", 50.0, title="Luffy OP05-119 Manga English"),
+                  L("new1", "$55.00", 55.0, title="Luffy OP05-119 Manga English"),
+                  L("new2", "$65.00", 65.0, title="Luffy ST26-005 SP")]
+ok("a sweep that isn't due doesn't run", (_tscan(_tcfg, _tc, _scan_fx, full_scan=False, tasks_only=True), _fl_calls)
+   == ([], []))
+m.TASK_CLOCK.clear()
+_r = _tscan(_tcfg, _tc, _scan_fx, full_scan=False, tasks_only=True)
+check("a due sweep pings each new listing for the watch it matches", sorted(_r), [("new", "new1", None), ("new", "new2", None)])
+ok("...and a tasks-only scan runs no per-watch searches", _fa_calls == [])
+# a pending rules edit is only completed by the watch's own queries, never by a sweep
+_swa["min_price"] = 45
+_sig_a = m.meta_get(_tc, "flt_sig:SA")
+m.TASK_CLOCK.clear()
+_tscan(_tcfg, _tc, _scan_fx, full_scan=False, tasks_only=True)
+ok("a sweep never completes a pending re-baseline", m.meta_get(_tc, "flt_sig:SA") == _sig_a)
+_tscan(_tcfg, _tc, _scan_fx)
+ok("...the watch's own pass does", m.meta_get(_tc, "flt_sig:SA") != _sig_a)
+# below-asking in a sweep uses the reference the watch's own pass stored
+m.active_asking_reference = lambda *a, **k: {"ungraded": 100.0}
+_tscan(_tcfg, _tc, _scan_fx)
+check("the full pass stores its asking reference", json.loads(m.meta_get(_tc, "ask_ref:SA")), {"ungraded": 100.0})
+m.active_asking_reference = lambda *a, **k: {}
+m.TASK_CLOCK.clear()
+ok("after SA's rules edit the sweep's first run re-seeds SA's listings (no pings for them)",
+   [x for x in _tscan(_tcfg, _tc, _scan_fx, full_scan=False, tasks_only=True) if x[1] in ("old1", "new1")] == [])
+_SW_PAGES[_SQ] = [L("cheap1", "$80.00", 80.0, title="Luffy OP05-119 Manga English")]
+m.TASK_CLOCK.clear()
+_tscan(_tcfg, _tc, _scan_fx, full_scan=False, tasks_only=True)
+ok("...and a sweep flags a deal against it (not against its own pool)",
+   [x[2].get("is_deal") for x in _X if x[1] == "cheap1"] == [True])
+
+_bw = {"name": "BW", "queries": ["own"], "require": ["232/091"], "grades": ["ungraded", "psa10"], "language": "any",
+       "min_price": 300, "price_band_query": "mew ex 232/091 psa 10",
+       "price_alerts": [{"grade": "psa10", "below": 2700, "mention": "U"}]}
+_bcfg = _cfg(_bw, price_band_interval_seconds=180)
+_btsk = m.scan_tasks(_bcfg)
+check("a price band per target: Buy It Now, floor = max(min_price, 40% of target), cheapest first",
+      [(t["kind"], t["query"], t["params"]) for t in _btsk],
+      [("band", "mew ex 232/091 psa 10", {"LH_BIN": "1", "_sop": "15", "_ipg": "240", "_udhi": "2700.00",
+                                          "_udlo": "1080.00"})])
+_bc = _db("bands")
+_bkey = _btsk[0]["key"]
+m.TASK_CLOCK.clear()
+m.TASK_CLOCK[_bkey] = m.time.monotonic()            # not due during the seeding pass
+_tscan(_bcfg, _bc, {"BW": [_PL("hi1", 3000)]})
+_SW_PAGES["mew ex 232/091 psa 10"] = [_PL("old_under", 2500), _PL("raw_in_band", 1500, grade_prefix=""),
+                                      _PL("hi1", 3000), _PL("hi2", 2800)]
+m.TASK_CLOCK.clear()
+check("a band pings an under-target PSA 10 the monitor never saw, with the @mention",
+      _tscan(_bcfg, _bc, full_scan=False, tasks_only=True), [("new", "old_under", "U")])
+ok("...a raw copy inside the band is not this rule's business (no 'new' ping)",
+   _bc.execute("SELECT COUNT(*) FROM seen WHERE item_id='raw_in_band'").fetchone()[0] == 0)
+m.TASK_CLOCK.clear()
+ok("...and nothing re-pings next time", _tscan(_bcfg, _bc, full_scan=False, tasks_only=True) == [])
+_SW_PAGES["mew ex 232/091 psa 10"] = [_PL("hi1", 2600)]  # the old $3,000 listing cut under target
+m.TASK_CLOCK.clear()
+check("a known listing cut under target pings once (price_alert)", _tscan(_bcfg, _bc, full_scan=False, tasks_only=True),
+      [("price_alert", "hi1", "U")])
+check("every ping is logged with its kind and source (own search / sweep / band)",
+      [tuple(r) for r in _bc.execute("SELECT item_id, kind, via FROM pings ORDER BY rowid")],
+      [("old_under", "target_new", "band"), ("hi1", "target_cut", "band")])
+check("...and the sweep pings, with eBay's listing time when the page shows one",
+      [tuple(r) for r in _tc.execute("SELECT item_id, kind, via FROM pings ORDER BY rowid")][:2],
+      [("new1", "new", "sweep"), ("new2", "new", "sweep")])
+# --- architecture review: quiet sweeps, freshness gate, bands, flood breaker, full-pass share
+_qc3 = _db("quietsweep")
+_qw3 = {"name": "Q3", "queries": ["own"], "require": ["h29"], "grades": ["ungraded"]}
+_qcfg3 = _cfg(_qw3, sweeps=[{"query": "(umbreon,espeon)", "watches": ["Q3"]}])
+_SW_PAGES["(umbreon,espeon)"] = [L(f"oth{i}", "$5.00", 5.0, title=f"Espeon promo card {i}") for i in range(10)]
+m.TASK_CLOCK.clear()
+_tscan(_qcfg3, _qc3, {"Q3": [L("own1", "$900.00", 900.0, title="Umbreon H29 Aquapolis")]})   # seeds; sweep page: 0 matches
+m.TASK_CLOCK.clear()
+_tscan(_qcfg3, _qc3, {}, full_scan=False, tasks_only=True)        # a quiet tasks-only sweep (0 matches)
+_SW_PAGES["(umbreon,espeon)"] += [L("h29new", "$950.00", 950.0, title="Umbreon H29 Aquapolis Holo")]
+m.TASK_CLOCK.clear()
+check("a quiet group's sweep is credited on page evidence: its next new listing pings",
+      _tscan(_qcfg3, _qc3, {}, full_scan=False, tasks_only=True), [("new", "h29new", None)])
+_fc = _db("freshgate")
+_fw = {"name": "FG", "queries": ["own"], "require": ["op05-119"], "grades": ["ungraded"], "min_price": 100}
+_scan_spec(_cfg(_fw), _fc, {"own": [L("f0", "$150.00", 150.0)]})            # seeded
+_fw["min_price"] = 10                                                       # rules edit: cheaper copies match
+_now_f = m.datetime.now(m.timezone.utc)
+_r = _scan_spec(_cfg(_fw), _fc, {"own": [L("f0", "$150.00", 150.0),
+                                         {**L("fresh", "$50.00", 50.0), "listed_at": _now_f - m.timedelta(minutes=4)},
+                                         {**L("old", "$40.00", 40.0), "listed_at": _now_f - m.timedelta(days=3)},
+                                         {**L("future", "$45.00", 45.0), "listed_at": _now_f + m.timedelta(hours=7)}]})
+check("re-baseline: a listing eBay says went live 4 min ago still pings; 3-day-old and bogus-future seed",
+      _r, [("new", "fresh")])
+# bands only ever raise the target alert
+_SW_PAGES["mew ex 232/091 psa 10"] = [_PL("hi1", 2300)]               # already alerted at 2600; cut 11.5% more
+m.TASK_CLOCK.clear()
+ok("a band sighting of an already-alerted listing raises no drop / below ping",
+   _tscan(_bcfg, _bc, full_scan=False, tasks_only=True) == [])
+# flood breaker
+_fl3c = _db("floodcap")
+_fl3w = {"name": "FL", "queries": ["own"], "require": ["op05-119"], "grades": ["ungraded"]}
+_fl3cfg = _cfg(_fl3w, sweeps=[{"query": "luffy (x)", "watches": ["FL"]}])
+_SW_PAGES["luffy (x)"] = [L("s0", "$50.00", 50.0)]
+m.TASK_CLOCK.clear()
+_tscan(_fl3cfg, _fl3c, {"FL": [L("s0", "$50.00", 50.0)]})
+_SW_PAGES["luffy (x)"] = [L("s0", "$50.00", 50.0)] + [L(f"burst{i}", "$60.00", 60.0) for i in range(12)]
+m.TASK_CLOCK.clear()
+_r = _tscan(_fl3cfg, _fl3c, full_scan=False, tasks_only=True)
+check("one sweep page pings at most 8 new listings for a watch (the rest seed silently)", len(_r), 8)
+ok("...and the rest are recorded, not lost to a re-ping later",
+   _fl3c.execute("SELECT COUNT(*) FROM seen WHERE item_id LIKE 'burst%'").fetchone()[0] == 12)
+# a padded OR page (mostly near-miss titles) is still a real page; window-edge old listings seed
+_pdc = _db("padding")
+_pdw = {"name": "PD", "queries": ["own"], "require": ["op05-119"], "grades": ["ungraded"]}
+_pdcfg = _cfg(_pdw, sweeps=[{"query": "(luffy,op05,st26)", "watches": ["PD"]}])
+_SW_PAGES["(luffy,op05,st26)"] = [L("pd0", "$50.00", 50.0)] + [L(f"pad{i}", "$9.00", 9.0, title=f"Zoro promo card {i}")
+                                                               for i in range(19)]
+m.TASK_CLOCK.clear()
+_tscan(_pdcfg, _pdc, {"PD": [L("pd0", "$50.00", 50.0)]})
+_now_p = m.datetime.now(m.timezone.utc)
+_SW_PAGES["(luffy,op05,st26)"] += [{**L("pdnew", "$60.00", 60.0), "listed_at": _now_p - m.timedelta(minutes=2)},
+                                   {**L("pdedge", "$70.00", 70.0), "listed_at": _now_p - m.timedelta(days=9)}]
+m.TASK_CLOCK.clear()
+check("a padded sweep page (5% on-topic) is processed; a 9-day-old listing that slid into its window seeds silently",
+      _tscan(_pdcfg, _pdc, full_scan=False, tasks_only=True), [("new", "pdnew", None)])
+# the full pass keeps >= 1 slot in 5 however many tasks are due
+_shc = _db("share")
+_shw = [{"name": f"W{i}", "queries": ["own"], "require": ["op05-119"], "grades": ["ungraded"]} for i in range(3)]
+_shcfg = _cfg(*_shw, sweeps=[{"query": f"g{i} (a,b)", "watches": ["W0"]} for i in range(10)])
+_order_sh = []
+_sv_fl_sh = m.fetch_listings
+m.TASK_CLOCK.clear()
+m.fetch_all = lambda d, w, **k: (_order_sh.append(w["name"]), m._Results())[1]
+def _fl_sh(domain, q, **k):
+    _order_sh.append("T")
+    m.TASK_CLOCK.clear()                         # every task is due again at once
+    r = m._Results(); r.page_ok = True
+    return r
+m.fetch_listings = _fl_sh
+m.scan_once(_shcfg, _shc)
+m.fetch_listings = _sv_fl_sh
+_gaps_sh, _run_sh = [], 0
+for _e in _order_sh:
+    if _e == "T":
+        _run_sh += 1
+    else:
+        _gaps_sh.append(_run_sh); _run_sh = 0
+check("between two watches of a full pass at most 4 tasks run (all 10 still run at the start)",
+      _gaps_sh, [10, 4, 4])
+m.fetch_listings, m.fetch_all, m.active_asking_reference = _sv_tasks
+m.TASK_CLOCK.clear()
+
 print("== prune tombstones: a resurfacing listing is restored, not re-alerted ==")
 _tc = _db("tomb")
 _tw = {"name": "GIR", "require": ["186/196"], "grades": ["psa10"], "language": "any",
@@ -1436,8 +1700,21 @@ ok("...so a real US deal is flagged", _d and _d[0][2].get("is_deal") is True)
 _r = _scan(_cfg(dict(_rw, reference_override={"ungraded": 100})), _rc,
            {"REF": [L("hp1", "$60.00", 60.0, title="Luffy ST10-006 Dallas HP"),
                     L("nm1", "$60.00", 60.0, title="Luffy ST10-006 Dallas NM")]})
-ok("played copy alerts but is not tagged a deal", [x[2].get("is_deal") for x in _r if x[1] == "hp1"] == [False])
+ok("a played (HP) raw copy doesn't alert at all (owner's choice 2026-10-18)", [x for x in _r if x[1] == "hp1"] == [])
 ok("clean copy at the same price is a deal", [x[2].get("is_deal") for x in _r if x[1] == "nm1"] == [True])
+_r = _scan(_cfg(dict(_rw, name="REF2", reference_override={"ungraded": 100}, exclude_played=False)), _rc,
+           {"REF2": [L("hp2", "$60.00", 60.0, title="Luffy ST10-006 Dallas HP")]})
+_r = _scan(_cfg(dict(_rw, name="REF2", reference_override={"ungraded": 100}, exclude_played=False)), _rc,
+           {"REF2": [L("hp2", "$60.00", 60.0, title="Luffy ST10-006 Dallas HP"),
+                     L("hp3", "$60.00", 60.0, title="Luffy ST10-006 Dallas Moderately Played")]})
+ok("...a watch can opt back in: then it alerts, but is never tagged a deal",
+   [(x[1], x[2].get("is_deal")) for x in _r] == [("hp3", False)])
+_r = _scan(_cfg(dict(_rw, name="REF3", grades=["psa10"])), _rc,
+           {"REF3": [L("s1", "$900.00", 900.0, title="Luffy ST10-006 Dallas PSA 10 damaged case")]})
+_r = _scan(_cfg(dict(_rw, name="REF3", grades=["psa10"])), _rc,
+           {"REF3": [L("s1", "$900.00", 900.0, title="Luffy ST10-006 Dallas PSA 10 damaged case"),
+                     L("s2", "$950.00", 950.0, title="Luffy ST10-006 Dallas PSA 10 cracked case damaged")]})
+ok("slabs aren't gated on condition words (they describe the case)", [x[1] for x in _r] == ["s2"])
 m.active_asking_reference = lambda *a, **k: {}
 
 print("== query rotation + per-query silent baseline ==")
@@ -1598,7 +1875,7 @@ _sv2_sleep = m.time.sleep
 m.time.sleep = lambda s: None
 _X2, _N2 = [], []
 m.send_discord = lambda url, name, lst, grade, **k: _X2.append((k.get("event", "new"), lst["item_id"], k))
-m.send_simple_discord = lambda url, title, text, color: _N2.append((title, text))
+m.send_simple_discord = lambda url, title, text, color, **k: _N2.append((title, text))
 m.get_market_prices = lambda *a, **k: {}
 m.active_asking_reference = lambda *a, **k: {}
 
@@ -1753,7 +2030,7 @@ m.egress_country = lambda: "US"
 m.load_config = lambda: {"poll_interval_seconds": 60, "discord_webhook_url": "https://discord.test/wh",
                          "watches": [{"name": "R", "require": ["x"], "grades": ["ungraded"]}]}
 _crash_notes = []
-m.send_simple_discord = lambda url, title, text, color: _crash_notes.append(title)
+m.send_simple_discord = lambda url, title, text, color, **k: _crash_notes.append(title)
 def _crash_scan(cfg, conn, **k):
     _cclock[0] += 60
     raise ValueError("could not convert string to float: '5%'")
@@ -1780,6 +2057,38 @@ m.WEBHOOK_DEAD["status"] = None
 for _k, _v in _sv_crash.items():
     setattr(m, _k, _v)
 m.time.monotonic, sys.argv, m.time.sleep = _sv_mono_c, _sv_argv_c, _sv_sleep_c
+
+print("== CI loop runs due sweeps between full passes ==")
+_sv_tl = {k: getattr(m, k) for k in ("load_config", "enable_file_logging", "validate_config",
+                                      "egress_country", "scan_once")}
+_sv_mono_t, _sv_argv_t, _sv_sleep_t = m.time.monotonic, sys.argv, m.time.sleep
+_tclock, _tlog = [2000.0], []
+m.time.monotonic = lambda: _tclock[0]
+m.time.sleep = lambda s: _tclock.__setitem__(0, _tclock[0] + s)
+m.enable_file_logging = lambda: None
+m.validate_config = lambda cfg: []
+m.egress_country = lambda: "US"
+_tl_cfg = {"poll_interval_seconds": 300, "sweep_interval_seconds": 60, "watches": [
+    {"name": "A", "require": ["x"], "grades": ["ungraded"]}],
+    "sweeps": [{"query": "x (a,b)", "watches": ["A"]}]}
+m.load_config = lambda: json.loads(json.dumps(_tl_cfg))
+def _tl_scan(cfg, conn, **k):
+    kind = "tasks" if k.get("tasks_only") else ("full" if k.get("full_scan", True) else "prio")
+    _tlog.append((kind, round(_tclock[0] - 2000)))
+    _tclock[0] += 100 if kind == "full" else 5
+    for t in m.scan_tasks(cfg):
+        m.TASK_CLOCK[t["key"]] = _tclock[0]      # a full pass runs its due tasks inside too
+    return 0
+m.scan_once = _tl_scan
+sys.argv = ["ebay_monitor.py", "--loop-for-minutes", "20"]
+m.main()
+check("sweeps run every ~60 s between full passes (which come every pass + 300 s)", _tlog[:8],
+      [("full", 0), ("tasks", 160), ("tasks", 225), ("tasks", 290), ("tasks", 355), ("full", 400),
+       ("tasks", 560), ("tasks", 625)])
+for _k, _v in _sv_tl.items():
+    setattr(m, _k, _v)
+m.time.monotonic, sys.argv, m.time.sleep = _sv_mono_t, _sv_argv_t, _sv_sleep_t
+m.TASK_CLOCK.clear()
 
 print("== CI loop sleeps only until the next pass is due (no fixed tick) ==")
 _sv_loop = {k: getattr(m, k) for k in ("load_config", "enable_file_logging", "validate_config",
@@ -1857,7 +2166,7 @@ _sv3_sleep = m.time.sleep
 m.time.sleep = lambda s: None
 _X3, _N3 = [], []
 m.send_discord = lambda url, name, lst, grade, **k: _X3.append((k.get("event", "new"), lst["item_id"], k))
-m.send_simple_discord = lambda url, title, text, color: _N3.append((title, text))
+m.send_simple_discord = lambda url, title, text, color, **k: _N3.append((title, text))
 m.get_market_prices = lambda *a, **k: {}
 m.active_asking_reference = lambda *a, **k: {}
 
