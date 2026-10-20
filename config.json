@@ -22,7 +22,7 @@
   "price_band_interval_seconds": 600,
   "sweeps": [
     {"query": "(giratina,mew,mewtwo,rayquaza,oshawott)",
-     "watches": ["Giratina V Alt Art 186/196 (Lost Origin)", "Mew ex 232/091 SIR (Paldean Fates)", "Mewtwo & Mew GX SM191 TAG TEAM (Black Star Promo)", "Rayquaza VMAX Alt Art 218/203 (Evolving Skies)", "Oshawott 105/086 — SV White Flare Illustration Rare (English, 2025)", "Rayquaza V Alt Art 194/203 (Evolving Skies)", "Rayquaza EX 123/124 Full Art (Dragons Exalted)", "Rayquaza 3/17 Holo (POP Series 1)", "Giratina 10/127 — Platinum Holo Rare (English, 2009)"]},
+     "watches": ["Giratina V Alt Art 186/196 (Lost Origin)", "Mew ex 232/091 SIR (Paldean Fates)", "Mewtwo & Mew GX SM191 TAG TEAM (Black Star Promo)", "Rayquaza VMAX Alt Art 218/203 (Evolving Skies)", "Oshawott 105/086 — SV White Flare Illustration Rare (English, 2025)", "Rayquaza V Alt Art 194/203 (Evolving Skies)", "Rayquaza EX 123/124 Full Art (Dragons Exalted)", "Rayquaza 3/17 Holo (POP Series 1)", "Giratina 10/127 — Platinum Holo Rare (English, 2009)", "Rayquaza 144/BW-P — Nobunaga's Ambition Promo (Japanese, 2012)"]},
     {"query": "one piece (3rd,third) (anniversary,anniv)",
      "watches": ["One Piece 3rd Anniversary Set (English, sealed)"]},
     {"query": "(luffy,op05,st26)",
@@ -334,6 +334,33 @@
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "language": "english",
       "min_price": null,
+      "max_price": null
+    },
+    {
+      "name": "Rayquaza 144/BW-P — Nobunaga's Ambition Promo (Japanese, 2012)",
+      "_typical_price": "asking ~$110-650 raw (US/CA sellers; still-sealed promo packs ~$450-550) / ~$1,200-2,000 PSA 10 / ~$2,200 CGC Pristine 10 (2026-10)",
+      "_note": "Pokemon, Japanese (2012 'Pokemon + Nobunaga's Ambition' DS game first-print bonus: the black/shiny Rayquaza, Japanese BW promo 144/BW-P; the game is 'Pokemon Conquest' in English, the card was never printed in English). Signatures: (1) rayquaza + the promo code ('144bwp', also 'BW-P 144'); (2) rayquaza + the game name, incl. seller misspellings ('Nobunga', 'Nobunaka', 'Nbng's Ambition'); (3) PSA's label wording, common on US slabs ('2012 POKEMON JAPANESE BLACK & WHITE PROMO #144 RAYQUAZA-HOLO PSA 10': no Nobunaga, no BW-P): the bare 144 is anchored to a neighbouring token ('promo #144', 'no.144', 'rayquaza 144', 'holo #144') AND needs a Black & White marker, so a cert number can't satisfy it. '144/BW-P' alone is not enough (a Bisharp listing also carries it), so every signature needs 'rayquaza'. Rejects the Rayquaza-EX 145/BW-P, the numberless '... PROMO #BW-P RAYQUAZA' slabs (a different promo: $5,000-25,000 at PSA 5-8), the English BW47 Rayquaza-EX, game-code event distributions and DS game + card bundles. Probe 2026-10-19 (corpus job, 7 searches, 985 listings): 294 accepted from any region (69 PSA 10), 30 from US/CA sellers (17 PSA 10, 2 CGC 10, 11 raw), 0 false matches; most of the supply is listed from Japan and stays behind the US/CA gate. The cheap PSA 10s in the probe ($285-324) were auctions, which this monitor skips.",
+      "queries": [
+        "rayquaza 144/bw-p",
+        "2012 pokemon japanese black white promo 144 rayquaza holo",
+        "rayquaza holo 144 promo psa 10",
+        "pokemon nobunaga rayquaza 144",
+        "rayquaza nobunaga's ambition promo japanese"
+      ],
+      "rotate_queries": true,
+      "_queries_note": "queries[0] (the promo code: 21 of the 30 US/CA listings on its first page in the 2026-10-19 probe) runs every scan; the second slot rotates through the rest. The two label-form searches reach PSA's '... BLACK & WHITE PROMO #144 RAYQUAZA-HOLO' slabs, which the number search mostly misses (queries[0] + either one: 29-30 of 30 per pass). New listings come in through the P1 sweep ('rayquaza' is one of its OR terms).",
+      "match_any": [
+        ["rayquaza", ["144/bw-p", "bw-p 144"]],
+        ["rayquaza", ["nobunaga", "nobunga", "nobunaka", "ambition"]],
+        ["rayquaza", ["promo #144", "no.144", "rayquaza 144", "holo #144", "144 black & white"], ["black & white", "bw-p", "bw promo"]]
+      ],
+      "exclude": ["145/bw-p", "with software", "w/ sealed card", "with sealed card", "with games", "ds set", "distribution", "genesect", "poster", "clear file"],
+      "_exclude_note": "145/BW-P is the Rayquaza-EX promo; with software / w/ sealed card / with games / DS set are DS game + card bundles (bare 'software' is NOT excluded: Japanese sellers describe the card itself as the 'Nintendo DS Software ... First Edition Bonus'); distribution / genesect are the Black 2 & White 2 game-code events ('Nobunaga Shiny Rayquaza Event Distribution'); poster / clear file are Nobunaga's Ambition merch.",
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "_language_note": "language 'any': Japan-only promo (no English print), so the 144/BW-P / Nobunaga tokens already gate identity, and 'any' keeps titles that don't say Japanese.",
+      "language": "any",
+      "_min_price_note": "$40 floor: genuine copies start ~$60 (played ones go lower, and those are excluded anyway); the sub-$40 'Rayquaza + Nobunaga' titles are game-code event distributions, posters and clear files.",
+      "min_price": 40,
       "max_price": null
     },
     {

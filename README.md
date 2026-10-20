@@ -38,6 +38,7 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 - **Rayquaza VMAX 218/203** — Evolving Skies alternate art secret rare (English; $300 floor; @mention when a PSA 10 lists under $1,900)
 - **Rayquaza 3/17** — POP Series 1 (2004) Cosmos Holo Rare (holo only; non-holo excluded; also the zero-padded `003/017` spelling)
 - **Rayquaza EX 123/124** — Dragons Exalted (2012) Full Art Ultra Rare (not the regular 85/124)
+- **Rayquaza 144/BW-P Nobunaga's Ambition Promo** — **Japanese** 2012 "Pokémon + Nobunaga's Ambition" DS bonus, the black/shiny Rayquaza (keyed on `rayquaza` + `144/BW-P` or the game name, plus PSA's label wording "Black & White Promo #144 Rayquaza-Holo"; not the Rayquaza-EX `145/BW-P`, game-code event distributions or DS game bundles; $40 floor)
 - **Oshawott 105/086** — **English** SV White Flare (2025) Illustration Rare (keyed on the secret-numbered `105/086`; verified no Black Bolt / other-set Oshawott shares it, so terse listings match too)
 - **Espeon No.196** — **Japanese** Neo Discovery ("Crossing the Ruins") Holo Rare (not Neo Destiny "Dark Espeon" No.196, nor the non-holo Premium File promo)
 - **Espeon 1/75** — **English** Neo Discovery (2001 WOTC) Holo Rare (the English counterpart of No.196; German/French/Italian prints share 1/75 and are excluded) — **also tracks PSA 9** (this watch only)
