@@ -115,7 +115,7 @@
     {
       "name": "Mew ex 232/091 SIR (Paldean Fates)",
       "_typical_price": "asking ~$900 raw / ~$3,500 PSA 10 (2026-09)",
-      "_note": "Pokemon. 232/091 is the Special Illustration Rare 'Bubble Mew'; the only sibling in the set is Mew ex 216/091 (Shiny UR), excluded by number (both 216/091 and 216/91 spellings). match_any also handles the common '232/91' leading-zero form (normalizes to '23291', distinct from '232091'), a bare '#232'+set+SIR path, and a numberless 'bubble mew'+set path. Require 'mew ex' not bare 'mew' (which substring-hits 'mewtwo', also excluded). Verified offline: 13/13 real titles matched, 13/13 confusables (216/091 both forms, Mewtwo, 151-set Mew ex 205/165 & 193/165, bulk/master-set/jumbo/sealed, Japanese 347/190) rejected.",
+      "_note": "Pokemon. 232/091 is the Special Illustration Rare 'Bubble Mew'; the only sibling in the set is Mew ex 216/091 (Shiny UR), excluded by number (both 216/091 and 216/91 spellings). match_any also handles the common '232/91' leading-zero form (normalizes to '23291', distinct from '232091'), a bare '#232'+set+SIR path, and a numberless 'bubble mew'+set path. Require 'mew ex' not bare 'mew' (which substring-hits 'mewtwo', also excluded). Verified offline: 13/13 real titles matched, 13/13 confusables (216/091 both forms, Mewtwo, 151-set Mew ex 205/165 & 193/165, bulk/master-set/jumbo/sealed, Japanese 347/190) rejected. 2026-10-21: the '#232 + set + SIR' path had no 'sir' term, and PSA's abbreviated label ('... #232 SP ILLUS RARE PSA 10', a $2,375 sale on 2026-10-15) matched nothing; added 'sp illus' and SIR anchored to the number or the name ('232 sir', 'sir 232', 'mew ex sir', so 'Gardevoir ex SIR 233/091 ... Mew ex 232' still fails). Checked on 290 titles (the last 30 PSA 10 sales + 260 live sub-$2,300 PSA 10-ish listings): only that label title changed.",
       "queries": [
         "mew ex 232/091 paldean fates",
         "mew ex 232/091 special illustration rare",
@@ -132,7 +132,7 @@
         ["mew ex", ["232/091", "232/91"]],
         [["232/091", "232/91"], "mew", ["paldean fates", "paldea fates", "paf"]],
         [["bubble mew", "soap bubble"], ["paldean fates", "paldea fates", "paf"]],
-        ["mew ex", "232", ["paldean fates", "paldea fates", "paf"], ["special illustration rare", "special illus", "specillus", "bubble mew", "soap bubble"]],
+        ["mew ex", "232", ["paldean fates", "paldea fates", "paf"], ["special illustration rare", "special illus", "specillus", "sp illus", "232 sir", "sir 232", "mew ex sir", "bubble mew", "soap bubble"]],
         [["232/091", "232/91"], "mew", ["bubble mew", "special illustration"]]
       ],
       "_exclude_note": "sealed/bulk/lot terms are now handled centrally by is_bulk_or_sealed(); only the card-specific terms (the 216/091 sibling in both spellings, and mewtwo) remain here.",
