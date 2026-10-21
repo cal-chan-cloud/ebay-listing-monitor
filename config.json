@@ -138,12 +138,12 @@
       "_exclude_note": "sealed/bulk/lot terms are now handled centrally by is_bulk_or_sealed(); only the card-specific terms (the 216/091 sibling in both spellings, and mewtwo) remain here.",
       "exclude": ["216/091", "216/91", "mewtwo"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
-      "_language_note": "language 'english': German/French/Italian/Spanish/Portuguese prints share the English collector number, so the number alone does not gate language (2026-10-18 corpus: German and Spanish copies were alerting as this card). Negated mentions ('English NOT Japanese') are stripped before detection, so those titles still pass. German PSA 10s at $2,796-2,800 sit just above the $2,700 @mention.",
+      "_language_note": "language 'english': German/French/Italian/Spanish/Portuguese prints share the English collector number, so the number alone does not gate language (2026-10-18 corpus: German and Spanish copies were alerting as this card). Negated mentions ('English NOT Japanese') are stripped before detection, so those titles still pass. German PSA 10s at $2,796-2,800 sat just above the then-$2,700 @mention.",
       "language": "english",
-      "_price_alerts_note": "Fire an @mention when a PSA 10 copy is listed below $2,700. 'below' is an absolute USD threshold (only USD-priced listings are compared); pings once per crossing and re-arms only if the price rises back above target.",
+      "_price_alerts_note": "Fire an @mention when a PSA 10 copy is listed below $2,300 (lowered from $2,700 on 2026-10-21, when the cheapest US/CA PSA 10 asks were $2,400-2,650). 'below' is an absolute USD threshold (only USD-priced listings are compared); pings once per crossing and re-arms only if the price rises back above target.",
       "price_band_query": "mew ex psa 10",
       "price_alerts": [
-        {"grade": "psa10", "below": 2700, "mention": "209187722575872000"}
+        {"grade": "psa10", "below": 2300, "mention": "209187722575872000"}
       ],
       "_min_price_note": "$300 floor: genuine copies start ~$600 raw / ~$1,150 CGC 10 / ~$2,800 PSA 10 (2026-10-18); below it were a $15 '(READ DESCRIPTION!)' listing and a $190 '180HP' fake, and a fake 'PSA 10' at that price would fire the @mention.",
       "min_price": 300,

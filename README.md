@@ -338,10 +338,10 @@ Add entries to the `watches` array in `config.json`:
   on Discord**. Each rule is `{"grade": <bucket, optional>, "below": <USD>, "mention":
   "<discord id>"}` and fires when a matched listing of that grade is priced strictly
   **below** the threshold (USD only — foreign-currency listings are never compared).
-  Example — ping a user when a PSA 10 lists under $2,700:
+  Example — ping a user when a PSA 10 lists under $2,300:
   ```json
   "price_alerts": [
-    {"grade": "psa10", "below": 2700, "mention": "209187722575872000"}
+    {"grade": "psa10", "below": 2300, "mention": "209187722575872000"}
   ]
   ```
   A crossing is the *headline* alert for that listing (one message, not a duplicate
@@ -352,8 +352,8 @@ Add entries to the `watches` array in `config.json`:
   edit never @mentions listings that were already sitting under the new target. Every
   target hit — a brand-new listing under target, an old one cut under it, or an older
   listing a rules change newly matches (up to 3 per watch per pass) — uses the 🔔 format:
-  the push text reads like `🔔 $2,450.00 +$5.99 ship · PSA 10 · $250 (9.3%) under your
-  $2,700.00 target · Best Offer · listed 3 min ago · Mew ex 232/091 SIR`, with a large
+  the push text reads like `🔔 $2,050.00 +$5.99 ship · PSA 10 · $250 (10.9%) under your
+  $2,300.00 target · Best Offer · listed 3 min ago · Mew ex 232/091 SIR`, with a large
   picture. `price_band_query` / `price_band_floor` tune the price-band search (see above).
   `mention` goes in the message content with `allowed_mentions`, so it actually pings;
   use a Discord **user** id (right-click → Copy User ID with Developer Mode on).
