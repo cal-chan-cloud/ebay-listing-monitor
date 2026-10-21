@@ -100,10 +100,13 @@ of whether any local machine is on:
 - **Sweeps (near-instant pings):** every watch is also covered by a grouped **sweep** — ONE
   eBay OR search such as `(espeon,lugia,umbreon)`, newest first, 240 results, Buy It Now only —
   whose results go through each covered watch's own rules (config `sweeps`). Sweeps holding a
-  price-target watch run every `sweep_priority_interval_seconds` (30), the rest every
-  `sweep_interval_seconds` (60), interleaved with the full passes and between them; a sweep's
-  240 newest results span 40 minutes to weeks (measured), so nothing new falls out of the
-  window between two sweeps. Group terms are names every genuine title carries (eBay matches
+  price-target watch run every `sweep_priority_interval_seconds`, the rest every
+  `sweep_interval_seconds` (both 30), interleaved with the full passes and between them; a
+  sweep's 240 newest results span 40 minutes to weeks (measured), so nothing new falls out of
+  the window between two sweeps. A sweep that fails (the 403s outlast every retry) runs again
+  10 s later instead of a whole interval later. Fewer, larger groups (4, of up to 9 OR terms)
+  keep every group at its interval within the request budget (~5 sweeps a minute alongside
+  the full passes). Group terms are names every genuine title carries (eBay matches
   OR terms against title words literally, and returns NOTHING past ~10 alternatives in a
   group). A sweep counts as one more query of each covered watch: its first run seeds
   silently (credited on page evidence, so a quiet group's sweep isn't "fresh" forever), it
@@ -115,6 +118,12 @@ of whether any local machine is on:
   new listings per watch (flood breaker). Each alert logs (and the embed shows) how long ago
   eBay says the listing went live; pass summaries report the median listed→pinged delay, and
   every ping is recorded in the `pings` table of `seen.db`.
+  How fast can a ping be? eBay itself only shows a new listing in search **~3.2 minutes**
+  after it goes live (measured 2026-10-21 with `tools/fresh_probe.py`, `corpus.yml
+  ab_mode=fresh`: the same for every URL variant — eBay's no-cache flag, a cache-busting
+  parameter, a 60-result page, a category firehose — and the RSS feed is gone), and the
+  listing time it shows is rounded down to the minute (~30 s). So a ping lands ~4 minutes
+  after the time eBay shows; the monitor's own share is the ~30 s wait for the next sweep.
 - **Price bands:** per `price_alerts` rule, a Buy-It-Now search of the watch's
   `price_band_query` priced between the floor (`price_band_floor`, default the larger of
   `min_price` and 40% of the target) and the target, 240 results, every

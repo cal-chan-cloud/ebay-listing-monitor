@@ -1510,6 +1510,20 @@ m.TASK_CLOCK.clear()
 _r = _tscan(_tcfg, _tc, _scan_fx, full_scan=False, tasks_only=True)
 check("a due sweep pings each new listing for the watch it matches", sorted(_r), [("new", "new1", None), ("new", "new2", None)])
 ok("...and a tasks-only scan runs no per-watch searches", _fa_calls == [])
+# a failed sweep retries soon instead of losing a whole cycle
+_sv_fl_fail = m.fetch_listings
+m.fetch_listings = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("403 after 4 attempts"))
+m.TASK_CLOCK.clear()
+m.scan_once(_tcfg, _tc, full_scan=False, tasks_only=True)
+_tnow = m.time.monotonic()
+ok("a failed sweep is due again after SWEEP_RETRY_SECONDS, not its 60 s interval",
+   not m.task_due(_tsk[0], _tnow + m.SWEEP_RETRY_SECONDS - 3) and m.task_due(_tsk[0], _tnow + m.SWEEP_RETRY_SECONDS + 1))
+m.fetch_listings = _fl_fake
+m.TASK_CLOCK.clear()
+_tscan(_tcfg, _tc, _scan_fx, full_scan=False, tasks_only=True)
+_tnow = m.time.monotonic()
+ok("...a successful one waits its interval", not m.task_due(_tsk[0], _tnow + 30) and m.task_due(_tsk[0], _tnow + 61))
+m.fetch_listings = _sv_fl_fail
 # a pending rules edit is only completed by the watch's own queries, never by a sweep
 _swa["min_price"] = 45
 _sig_a = m.meta_get(_tc, "flt_sig:SA")

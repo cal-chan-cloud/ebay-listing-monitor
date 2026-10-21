@@ -19,7 +19,7 @@ on:
         description: "Instead: A/B requests vs curl_cffi on N searches (0 = off)"
         default: "0"
       ab_mode:
-        description: "A/B experiment: client, retry, group or sweeps (measure the configured sweeps)"
+        description: "A/B experiment: client, retry, group, sweeps (measure the configured sweeps) or fresh (listing->searchable lag; set ab=0)"
         default: "client"
 
 permissions:
@@ -32,7 +32,7 @@ concurrency:
 jobs:
   corpus:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
@@ -45,7 +45,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Fetch every watch's searches once
-        if: ${{ inputs.ab == '0' }}
+        if: ${{ inputs.ab == '0' && inputs.ab_mode != 'fresh' }}
         env:
           CORPUS_LIMIT: ${{ inputs.limit }}
           CORPUS_RAW: ${{ inputs.raw }}
@@ -60,6 +60,12 @@ jobs:
         run: |
           pip install "curl_cffi>=0.7,<1"
           python tools/http_ab.py ab.json
+
+      - name: Measure how fresh newest-first results are
+        if: ${{ inputs.ab_mode == 'fresh' }}
+        env:
+          FRESH_MINUTES: "30"
+        run: python tools/fresh_probe.py ab.json
 
       - uses: actions/upload-artifact@v4
         with:

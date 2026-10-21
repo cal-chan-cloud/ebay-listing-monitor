@@ -1626,6 +1626,7 @@ _TITLE_CONDITION = re.compile(r"\b(NM[-/ ]?MT|NM\+?|near[\s-]*mint\+?|LP\+?|ligh
 STALE_LISTING_HOURS = 6     # a "new" match listed longer ago than this is labelled an older listing
 JUST_LISTED_MINUTES = 20    # ...and one listed more recently is genuinely new, whatever query found it
 TASK_NEW_CAP = 8            # new-listing pings per watch from one sweep page before the rest seed silently
+SWEEP_RETRY_SECONDS = 10    # a failed sweep is due again this soon, not a whole interval later
 
 
 def _just_listed(listing, now=None):
@@ -2716,7 +2717,11 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                     _run(wi, w, listings, rot, task=t)
         else:
             task_runs[t["kind"] + "_failed"] += 1
-        TASK_CLOCK[t["key"]] = time.monotonic()   # the interval counts from the end
+        # The interval counts from the end. A sweep whose search failed (the 403s outlasted every
+        # retry: ~7% of searches) is due again SWEEP_RETRY_SECONDS later instead: waiting a whole
+        # interval held that group's new listings back by another cycle (~45 s).
+        retry = not ok and t["kind"] == "sweep"
+        TASK_CLOCK[t["key"]] = time.monotonic() - (max(0.0, t["every"] - SWEEP_RETRY_SECONDS) if retry else 0.0)
 
     def _run_due_tasks(limit=None):
         """Run due tasks, most urgent first. `limit` caps the searches between two watches of a
