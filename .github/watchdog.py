@@ -10,6 +10,12 @@ scheduled workflow and pings Discord if:
   2. the most recent completed monitor run FAILED (the job is crashing), or
   3. the committed health state is "down" (scraper/matching broken and unresolved).
 
+It also RESTARTS the monitor when its self-requeue chain has dropped: nothing running or
+queued, and the last run either finished normally or failed only at "Queue the next run"
+(2026-11-05: GitHub's API answered HTTP 500/502 to every try, and the monitor sat idle
+until the next cron fire). A run that crashed while scanning is left alone (alert only)
+unless nothing has run for STALE_HOURS.
+
 Because it's a distinct workflow, a break in the monitor workflow itself doesn't stop
 this. The Discord alert (and log) is the signal; the job FAILS only when that alert can't
 be delivered (no or rejected webhook), so GitHub's failed-run email reaches the owner.
@@ -19,11 +25,19 @@ import os
 import sqlite3
 import subprocess
 import sys
+import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
 STALE_HOURS = 5.0     # alert when no monitor run has been ACTIVE for this long
 TIMEOUT_MINUTES = 250  # monitor.yml timeout-minutes: a run cancelled after this long hit it
+RESTART_AFTER_MIN = 15  # a finished run queues its successor within ~1 min; 15 min idle = dropped
+REQUEUE_STEP = "Queue the next run"
+# Discord's Cloudflare front rejects urllib's default "Python-urllib/3.x" agent with HTTP 403
+# ("error code: 1010") before the webhook is even looked up, so every watchdog alert failed
+# (found 2026-11-05). Any named agent goes through.
+USER_AGENT = "ebay-listing-monitor-watchdog/1.1 (+https://github.com/cal-chan-cloud/ebay-listing-monitor)"
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # repo root
 DB = os.path.join(HERE, "seen.db")
@@ -39,8 +53,9 @@ def notify_user():
         return None
 
 
-def discord(msg):
-    """Post the alert; True if Discord accepted it."""
+def discord(msg, mention=True):
+    """Post the alert; True if Discord accepted it. mention=False for a notice that needs no
+    action (the watchdog already restarted the monitor)."""
     url = os.environ.get("DISCORD_WEBHOOK_URL", "")
     if not url or url.startswith("PASTE_"):
         print("watchdog: no webhook configured; not sending.")
@@ -51,17 +66,26 @@ def discord(msg):
         "color": 0xB71C1C,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }]}
-    who = notify_user()
+    who = notify_user() if mention else None
     if who:   # embed-only messages don't notify anyone; an @mention does
         payload["content"] = f"<@{who}> eBay monitor watchdog"
         payload["allowed_mentions"] = {"users": [who]}
+    else:
+        payload["allowed_mentions"] = {"parse": []}
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"})
+        headers={"Content-Type": "application/json", "User-Agent": USER_AGENT})
     try:
         urllib.request.urlopen(req, timeout=20)
         print("watchdog: Discord alert sent.")
         return True
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read()[:200]
+        except Exception:
+            body = b""
+        print(f"watchdog: Discord send failed: HTTP {e.code} {body!r}", file=sys.stderr)
+        return False
     except Exception as e:
         print(f"watchdog: Discord send failed: {e}", file=sys.stderr)
         return False
@@ -101,6 +125,37 @@ def job_minutes(run_id):
         return None
 
 
+def failed_steps(run_id):
+    """Names of the run's failed steps, or None if they can't be read."""
+    try:
+        out = subprocess.check_output(
+            ["gh", "run", "view", str(run_id), "--json", "jobs", "-R", REPO], text=True, timeout=60)
+        jobs = json.loads(out).get("jobs") or []
+        return [st.get("name") or "" for j in jobs for st in (j.get("steps") or [])
+                if st.get("conclusion") == "failure"]
+    except Exception as e:
+        print(f"watchdog: could not read steps of run {run_id}: {e}", file=sys.stderr)
+        return None
+
+
+def dispatch_monitor():
+    """Queue a monitor run; True if GitHub accepted it. Retries through a brief API outage."""
+    if not REPO:
+        print("watchdog: GITHUB_REPOSITORY unset; not dispatching.", file=sys.stderr)
+        return False
+    for attempt in range(4):
+        try:
+            subprocess.run(["gh", "workflow", "run", "monitor.yml", "--ref", "main", "-R", REPO],
+                           check=True, timeout=60)
+            print("watchdog: queued a new monitor run.")
+            return True
+        except Exception as e:
+            print(f"watchdog: dispatch attempt {attempt + 1} failed: {e}", file=sys.stderr)
+            if attempt < 3:
+                time.sleep(30)
+    return False
+
+
 def seen_db_commit_age_hours():
     """Age in hours of the newest seen.db commit, or None if unreadable.
 
@@ -121,8 +176,13 @@ def seen_db_commit_age_hours():
 
 
 def main():
+    if os.environ.get("WATCHDOG_TEST") == "1":    # manual "test_alert" run: delivery check only
+        ok = discord("Test message: the watchdog can deliver alerts to this channel (manual run, "
+                     "nothing is wrong).", mention=False)
+        sys.exit(0 if ok else 1)
     now = datetime.now(timezone.utc)
     problems = []
+    restart = None          # why the requeue chain looks dropped (-> dispatch a new run)
 
     runs = recent_runs()
     if runs:
@@ -158,11 +218,37 @@ def main():
                     f"No monitor run has been active for {idle_h:.1f}h (last ended: {last:%Y-%m-%d %H:%M} UTC). "
                     "GitHub cron may be throttled/disabled, or the workflow is failing to trigger.")
         completed = [r for r in real if r.get("status") == "completed"]
-        if completed and completed[0] in timed_out:
+        newest = completed[0] if completed else None
+        crashed = False
+        if newest and newest in timed_out:
+            crashed = True
             problems.append(f"The most recent monitor run hit the {TIMEOUT_MINUTES}-min job timeout "
                             "(hung) and was cancelled.")
-        elif completed and completed[0].get("conclusion") in ("failure", "startup_failure"):
-            problems.append("The most recent completed monitor run FAILED — the job is crashing.")
+        elif newest and newest.get("conclusion") in ("failure", "startup_failure"):
+            steps = failed_steps(newest["databaseId"]) if newest.get("databaseId") else None
+            if steps and all(st.startswith(REQUEUE_STEP) for st in steps):
+                restart = (f"The last monitor run scanned normally but GitHub refused to queue the next one "
+                           f"(its \"{REQUEUE_STEP}\" step failed), so the monitor stopped at "
+                           f"{_t(newest, 'updatedAt'):%Y-%m-%d %H:%M} UTC.")
+            else:
+                crashed = True
+                problems.append("The most recent completed monitor run FAILED — the job is crashing"
+                                + (f" (failed step: {', '.join(steps)})." if steps else "."))
+        # The chain dropped: nothing running or queued. A failed requeue is restarted at once
+        # (nothing is retrying it any more); a successful run whose successor is missing after
+        # RESTART_AFTER_MIN; a crash only once nothing has run for STALE_HOURS (no crash loop).
+        queued = any(r.get("status") in ("queued", "pending", "waiting", "requested") for r in runs)
+        if newest and not running and not queued:
+            idle_min = (now - _t(newest, "updatedAt")).total_seconds() / 60
+            if restart is not None:
+                pass
+            elif not crashed and newest.get("conclusion") == "success" and idle_min >= RESTART_AFTER_MIN:
+                restart = (f"The monitor stopped at {_t(newest, 'updatedAt'):%Y-%m-%d %H:%M} UTC: its last run "
+                           "finished normally but no next run was queued.")
+            elif crashed and idle_min >= STALE_HOURS * 60:
+                restart = "Nothing has run since that failure, so the watchdog is giving it another try."
+        else:
+            restart = None       # a run is running or queued again: nothing to restart
     elif runs is None:
         # gh ERRORED — fall back to a gh-independent liveness signal (seen.db commit
         # recency) so a stopped monitor is still caught. Wide threshold (2x) avoids false
@@ -189,12 +275,19 @@ def main():
     except Exception as e:
         print(f"watchdog: health read error: {e}", file=sys.stderr)
 
+    healed = False
+    if restart is not None:
+        healed = dispatch_monitor()
+        problems.append(restart + (" ✅ Restarted it: a new monitor run is queued." if healed else
+                                   " ❌ Couldn't queue a new run: start it from Actions → "
+                                   "eBay Listing Monitor → Run workflow."))
     if problems:
         msg = "\n".join(f"• {p}" for p in problems)
         if REPO:
             msg += f"\n\nActions: https://github.com/{REPO}/actions"
         print("WATCHDOG ALERT:\n" + msg)
-        if not discord(msg):
+        # A chain the watchdog just restarted needs no action: notify without the @mention.
+        if not discord(msg, mention=not (healed and len(problems) == 1)):
             # Undeliverable alert (no/rejected webhook): fail this scheduled run instead, so
             # GitHub's failed-workflow email reaches the owner.
             sys.exit(1)

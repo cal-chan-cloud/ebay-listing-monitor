@@ -75,6 +75,27 @@ jobs:
         if: always()
         run: bash .github/persist.sh
 
+      # Queue the successor NOW, while segment 2 still scans: it waits in the concurrency
+      # group and starts the moment this run ends, and if GitHub's API is down (2026-11-05:
+      # HTTP 500/502 on every try for over a minute broke the chain for 2 h) the final step
+      # below retries for 20 min after segment 2. Only after a healthy segment 1, so a job that
+      # crashes in segment 2 gets at most one successor (whose own crash then ends the chain).
+      - name: Queue the next run (early)
+        id: early
+        if: steps.seg1.outcome == 'success' && steps.seg1.outputs.reroll != '1'
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in 1 2 3; do
+            if gh workflow run monitor.yml --ref main -R "$GITHUB_REPOSITORY"; then
+              echo "queued=1" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            sleep 20
+          done
+          echo "::warning::could not queue the next run yet; retrying after segment 2"
+
       # Runs only if segment 1 + its persist succeeded (a crash/bad config stops here,
       # visibly). If the remote advanced, the persist replayed onto the new tip, so this
       # segment runs the newest pushed code/config.
@@ -99,15 +120,21 @@ jobs:
       # documented exception to "GITHUB_TOKEN events don't trigger workflows"). It waits in
       # the concurrency group until this job finishes, then starts on a fresh runner.
       # Queued after a reroll (wrong-country / blocked runner) AND after a normal finish,
-      # for continuous coverage. Never after a cancel (that is how the monitor is stopped
-      # or redeployed) or a crash (no tight crash loop; the cron retries later).
+      # for continuous coverage, unless the early step above already queued one. Never after
+      # a cancel or a crash (no tight crash loop; the cron and the watchdog retry later). To
+      # STOP the monitor, disable the workflow: a cancel alone lets the queued run start.
       - name: Queue the next run
-        if: ${{ !cancelled() && (steps.seg1.outputs.reroll == '1' || steps.seg2.outputs.reroll == '1' || steps.seg2.outcome == 'success') }}
+        if: ${{ !cancelled() && steps.early.outputs.queued != '1' && (steps.seg1.outputs.reroll == '1' || steps.seg2.outputs.reroll == '1' || steps.seg2.outcome == 'success') }}
+        timeout-minutes: 25
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |   # a transient API error must not break the chain until the next cron fire
-          for i in 1 2 3; do
-            gh workflow run monitor.yml --ref main -R "$GITHUB_REPOSITORY" && exit 0
-            sleep 20
+        run: |   # an API outage must not break the chain until the next cron fire (hours away)
+          deadline=$(( $(date +%s) + 1200 ))
+          n=0
+          until gh workflow run monitor.yml --ref main -R "$GITHUB_REPOSITORY"; do
+            n=$((n + 1))
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::could not queue the next run after $n tries in 20 min"; exit 1
+            fi
+            sleep $(( n < 6 ? 20 : 60 ))
           done
-          exit 1

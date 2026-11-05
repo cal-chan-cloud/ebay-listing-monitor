@@ -2,11 +2,17 @@ name: Monitor Watchdog
 
 # Independent of the monitor workflow: catches SILENT failures the monitor's own
 # in-scan health check can't (the monitor stopping entirely, every run crashing, or
-# an unresolved "down" state). Pings Discord if any of those is true.
+# an unresolved "down" state). Pings Discord if any of those is true, and re-queues the
+# monitor when its self-requeue chain has dropped.
 on:
   schedule:
     - cron: "23 */3 * * *"   # every ~3h, offset off the hour
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      test_alert:
+        description: "Only send a test message to Discord (checks the watchdog can deliver)"
+        type: boolean
+        default: false
 
 # A separate concurrency group so this never queues behind the long monitor jobs.
 concurrency:
@@ -15,7 +21,7 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read              # to list monitor.yml runs
+  actions: write             # list monitor.yml runs, and queue one when its chain has dropped
 
 jobs:
   watchdog:
@@ -33,4 +39,5 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           GH_TOKEN: ${{ github.token }}
+          WATCHDOG_TEST: ${{ inputs.test_alert && '1' || '' }}
         run: python .github/watchdog.py

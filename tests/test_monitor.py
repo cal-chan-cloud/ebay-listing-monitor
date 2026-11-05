@@ -1835,14 +1835,18 @@ import importlib.util as _ilu
 _spec = _ilu.spec_from_file_location("watchdog", os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), ".github", "watchdog.py"))
 _wd = _ilu.module_from_spec(_spec); _spec.loader.exec_module(_wd)
+_wd_real_discord = _wd.discord
+import io as _io_mod
 _wd.DB = os.path.join(_TMPD, "no_such.db")
-_wd_msgs = []
-_wd.discord = lambda msg: (_wd_msgs.append(msg), True)[1]   # delivered
+_wd_msgs, _wd_mention, _wd_disp = [], [], []
+_wd.discord = lambda msg, mention=True: (_wd_msgs.append(msg), _wd_mention.append(mention), True)[2]   # delivered
+_wd.failed_steps = lambda rid: None      # unknown unless a test says otherwise
+_wd.dispatch_monitor = lambda: (_wd_disp.append(1), True)[1]
 def _ago(h):
     return (m.datetime.now(m.timezone.utc) - m.timedelta(hours=h)).strftime("%Y-%m-%dT%H:%M:%SZ")
 def _wdrun(runs):
     _wd.recent_runs = lambda: runs
-    _wd_msgs.clear(); _wd.main(); return " ".join(_wd_msgs)
+    _wd_msgs.clear(); _wd_mention.clear(); _wd_disp.clear(); _wd.main(); return " ".join(_wd_msgs)
 ok("failure behind a newer cancelled run is caught", "FAILED" in _wdrun([
     {"createdAt": _ago(0.1), "startedAt": _ago(0.1), "status": "queued", "conclusion": ""},
     {"createdAt": _ago(0.5), "startedAt": _ago(0.5), "status": "completed", "conclusion": "cancelled"},
@@ -1870,7 +1874,7 @@ _wd.job_minutes = lambda rid: 251.0
 ok("...while one whose job really ran 250 min is", "job timeout" in _wdrun([
     {"databaseId": 7, "createdAt": _ago(5), "startedAt": _ago(5), "updatedAt": _ago(0.8), "status": "completed",
      "conclusion": "cancelled"}]))
-_wd.discord = lambda msg: False          # webhook deleted / Discord down
+_wd.discord = lambda msg, mention=True: False          # webhook deleted / Discord down
 try:
     _wdrun([{"createdAt": _ago(1.0), "startedAt": _ago(1.0), "updatedAt": _ago(0.5), "status": "completed",
              "conclusion": "failure"}])
@@ -1878,7 +1882,70 @@ try:
 except SystemExit as e:
     _wd_code = e.code
 check("an alert that can't be delivered fails the watchdog run (GitHub emails the owner)", _wd_code, 1)
-_wd.discord = lambda msg: (_wd_msgs.append(msg), True)[1]
+_wd.discord = lambda msg, mention=True: (_wd_msgs.append(msg), _wd_mention.append(mention), True)[2]
+
+print("== watchdog: Discord delivery + restarting a dropped requeue chain (2026-11-05) ==")
+_sv_urlopen, _wd_req = _wd.urllib.request.urlopen, []
+_sv_hook = os.environ.get("DISCORD_WEBHOOK_URL")
+os.environ["DISCORD_WEBHOOK_URL"] = "https://discord.com/api/webhooks/1/test"
+_wd.urllib.request.urlopen = lambda req, timeout=None: _wd_req.append(req)
+ok("the alert is sent with a named User-Agent (Discord's Cloudflare 403s 'Python-urllib')",
+   _wd_real_discord("x") is True
+   and (_wd_req[-1].get_header("User-agent") or "").startswith("ebay-listing-monitor-watchdog"))
+def _raise_1010(req, timeout=None):
+    raise _wd.urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, _io_mod.BytesIO(b"error code: 1010"))
+_wd.urllib.request.urlopen = _raise_1010
+ok("...and a rejected send reports failure (the run then fails, so GitHub emails the owner)",
+   _wd_real_discord("x") is False)
+_wd.urllib.request.urlopen = _sv_urlopen
+if _sv_hook is None:
+    os.environ.pop("DISCORD_WEBHOOK_URL", None)
+else:
+    os.environ["DISCORD_WEBHOOK_URL"] = _sv_hook
+_wd.failed_steps = lambda rid: ["Queue the next run"]
+_r = _wdrun([{"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "updatedAt": _ago(0.5),
+              "status": "completed", "conclusion": "failure"}])
+ok("a run that failed only at 'Queue the next run' is a dropped chain, not a crash",
+   "refused to queue" in _r and "crashing" not in _r)
+ok("...the watchdog queues a new run and says so, without an @mention", _wd_disp == [1] and "Restarted" in _r
+   and _wd_mention == [False])
+ok("...but not when a run is already running again", _wdrun([
+    {"createdAt": _ago(0.3), "startedAt": _ago(0.3), "status": "in_progress", "conclusion": ""},
+    {"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "updatedAt": _ago(0.5),
+     "status": "completed", "conclusion": "failure"}]) == "" and _wd_disp == [])
+_wd.failed_steps = lambda rid: ["Run monitor (segment 2, ~105 min)"]
+_r = _wdrun([{"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "updatedAt": _ago(0.5),
+              "status": "completed", "conclusion": "failure"}])
+ok("a crash while scanning is reported with its step, not restarted at once",
+   "crashing (failed step: Run monitor (segment 2" in _r and _wd_disp == [] and _wd_mention == [True])
+_r = _wdrun([{"databaseId": 9, "createdAt": _ago(10), "startedAt": _ago(10), "updatedAt": _ago(6),
+              "status": "completed", "conclusion": "failure"}])
+ok("...but after STALE_HOURS with nothing running it gets another try", _wd_disp == [1] and "another try" in _r)
+_wd.failed_steps = lambda rid: None
+_r = _wdrun([{"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "updatedAt": _ago(0.4),
+              "status": "completed", "conclusion": "success"}])
+ok("a successful run with no successor 24 min later: restarted", _wd_disp == [1] and "no next run was queued" in _r)
+ok("...not while its successor may still be on its way (5 min)", _wdrun([
+    {"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "updatedAt": _ago(0.08),
+     "status": "completed", "conclusion": "success"}]) == "" and _wd_disp == [])
+ok("...nor when one is queued behind the concurrency group", _wdrun([
+    {"createdAt": _ago(0.3), "startedAt": _ago(0.3), "status": "pending", "conclusion": ""},
+    {"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "updatedAt": _ago(0.4),
+     "status": "completed", "conclusion": "success"}]) == "" and _wd_disp == [])
+_wd.dispatch_monitor = lambda: (_wd_disp.append(1), False)[1]
+_r = _wdrun([{"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "updatedAt": _ago(0.4),
+              "status": "completed", "conclusion": "success"}])
+ok("a restart GitHub refuses is an alert WITH the @mention", "Couldn't queue a new run" in _r and _wd_mention == [True])
+_wd.dispatch_monitor = lambda: (_wd_disp.append(1), True)[1]
+os.environ["WATCHDOG_TEST"] = "1"
+try:
+    _wdrun([])
+    _wd_code = None
+except SystemExit as e:
+    _wd_code = e.code
+os.environ.pop("WATCHDOG_TEST", None)
+ok("a manual test_alert run only sends a test message (no @mention) and exits 0",
+   _wd_code == 0 and "Test message" in " ".join(_wd_msgs) and _wd_mention == [False])
 
 # ==========================================================================
 # Runner geography (HEALTH DOWN from a mexicocentral runner) + critic fixes
