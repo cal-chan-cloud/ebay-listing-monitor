@@ -96,6 +96,14 @@ check("'CGC 10 PRISTINE (PSA 10+)' -> cgc10, not psa10",
 check("'BGS 9.5 (PSA 10 equivalent)' -> bgs9.5", m.classify_grade("Mew ex 232/091 BGS 9.5 (PSA 10 equivalent)"), "bgs9.5")
 check("raw 'looks like a PSA 10' -> ungraded", m.classify_grade("Mew ex 232/091 NM looks like a PSA 10"), "ungraded")
 check("'(PSA 10)' alone stays a PSA 10", m.classify_grade("Mew ex 232/091 Paldean Fates (PSA 10)"), "psa10")
+# 2026-11-06 probe: a $3,000 BGS 9.5 titled with a bare "(Psa 10)" read as a PSA 10 under target
+check("'BGS 9.5 ... (Psa 10)' -> bgs9.5 (a claim about the BGS slab)",
+      m.classify_grade("Espeon & Deoxys GX BGS 9.5 Tag Team Power Collection #SM240 (Psa 10)"), "bgs9.5")
+check("'CGC 10 (=PSA 10)' -> cgc10", m.classify_grade("Luffy ST26-005 CGC 10 (=PSA 10)"), "cgc10")
+check("'CGC Pristine (PSA 10)' -> cgc10", m.classify_grade("Mew ex 232/091 CGC Pristine (PSA 10)"), "cgc10")
+check("'TAG 10 (PSA 10)' -> other_graded", m.classify_grade("Giratina V 186/196 TAG 10 (PSA 10)"), "other_graded")
+check("'Tag Team ... (PSA 10)' stays a PSA 10 (TAG with no grade isn't a grader)",
+      m.classify_grade("Espeon & Deoxys GX Tag Team SM240 2020 (PSA 10)"), "psa10")
 check("'PSA 10 + free toploader' stays a PSA 10", m.classify_grade("Giratina V 186/196 PSA 10 + Free Toploader"), "psa10")
 check("number-less 'CGC Pristine' -> cgc10",
       m.classify_grade("Pokemon Mew ex 232/091 SV Paldean Fates SIR Full Art Holo CGC Pristine 2024 EN"), "cgc10")

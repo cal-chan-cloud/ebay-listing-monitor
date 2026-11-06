@@ -337,6 +337,16 @@ _PSA_CMP = re.compile(
     r"|\bPSA" + _SEP + r"10\s+equiv\w*\b"
     r"|\b(?:like|equivalent\s+to)\s+(?:an?\s+)?PSA" + _SEP + r"10\b",
     re.IGNORECASE)
+# ...and a bare "(PSA 10)" next to ANOTHER grader's grade is the same claim about that slab
+# ("Espeon & Deoxys GX BGS 9.5 Tag Team Power Collection #SM240 (Psa 10)", a $3,000 BGS 9.5 seen
+# 2026-11-06; "CGC 10 (=PSA 10)"): read as a PSA 10 it would fire a false "PSA 10 under target"
+# @mention. Without another grade in the title, "(PSA 10)" stays a PSA 10 (above).
+_PSA10_PAREN = re.compile(r"\(\s*[=~]?\s*PSA" + _SEP + _PSA_LABEL + r"10\s*\)", re.IGNORECASE)
+_OTHER_GRADE = re.compile(
+    r"\b(?:BGS|BECKETT|CGC|SGC|ACE|TAG|ARS|GMA|HGA|KSA|AGS|OCE)" + _SEP
+    + r"(?:(?:GEM|MINT|MT|GM|PRISTINE|PERFECT|BLACK|GOLD|LABEL)" + _SEP + r")*(?:10|\d(?:\.\d)?)\b"
+    r"|\bCGC" + _SEP + r"PRISTINE\b",
+    re.IGNORECASE)
 # CGC's only "Pristine" grade is 10, so a number-less "CGC Pristine" is a CGC 10 slab.
 _CGC_PRISTINE = re.compile(r"\bCGC" + _SEP + r"PRISTINE\b(?!\s*(?:candidate|potential|\?))", re.IGNORECASE)
 
@@ -344,6 +354,8 @@ _CGC_PRISTINE = re.compile(r"\bCGC" + _SEP + r"PRISTINE\b(?!\s*(?:candidate|pote
 def classify_grade(title: str) -> str:
     """Return a bucket key: 'psa10', 'bgs10', 'bgs9.5', 'cgc10', 'psa9', 'other_graded', or 'ungraded'."""
     title = _PSA_CMP.sub(" ", title)
+    if _PSA10_PAREN.search(title) and _OTHER_GRADE.search(_PSA10_PAREN.sub(" ", title)):
+        title = _PSA10_PAREN.sub(" ", title)
     title = _ASPIRE_GRADE.sub(" ", title)
     title = _CANDIDATE_10.sub(" ", title)
     title = _CANDIDATE_9.sub(" ", title)
