@@ -7,6 +7,7 @@
   "priority_interval_seconds": 0,
   "scan_workers": 1,
   "max_queries_per_watch": 2,
+  "_rotation_note": "2026-11-07: every multi-query watch rotates (owner's request): 21 watches had searches past max_queries_per_watch that never ran. Ten keep their first two searches every scan and rotate the rest through a third slot (max_queries 3; Espeon 1/75 keeps three, max_queries 4), because the second feeds an asking reference or finds many listings alone; the other eleven rotate through the second slot. Each never-run search seeds its backlog silently on its first run.",
   "min_request_interval_seconds": 2.0,
   "ebay_domain": "www.ebay.com",
   "price_drop_pct": 5,
@@ -39,6 +40,9 @@
         "luffy st26-005 adventure island",
         "monkey d luffy st26-005 foil"
       ],
+      "rotate_queries": true,
+      "max_queries": 3,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 3: the first two searches keep running every scan (the second feeds the asking reference or finds many listings the first misses); the rest, never run before, rotate through the third slot (+1 request per scan).",
       "require": ["st26-005"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "language": "english",
@@ -71,6 +75,9 @@
         "monkey d luffy one piece day dallas promo st10-006",
         "luffy st10-006 dallas promo gear 5"
       ],
+      "rotate_queries": true,
+      "max_queries": 3,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 3: the first two searches keep running every scan (the second feeds the asking reference or finds many listings the first misses); the rest, never run before, rotate through the third slot (+1 request per scan).",
       "require": ["luffy", "dallas", ["one piece day", "day dallas", "op day"]],
       "exclude": ["zoro", "promo pack luffy"],
       "_exclude_note": "The Dallas promo was handed out in a sealed Luffy/Zoro/Uta pack: 'zoro' drops the sealed '[SEALED] ... Promo Pack (Luffy, Zoro, Uta DON!)' packs and 'Luffy & Zoro PSA 10 Sequential' two-slab sets (both fired false 'new' alerts); 'promo pack luffy' catches a Zoro-less pack title. Bare 'promo pack' is avoided: a raw single titled '...Dallas Promo Pack Fresh' would be dropped.",
@@ -272,6 +279,9 @@
         "blastoise piplup gx alternate full art cosmic eclipse",
         "blastoise piplup gx full art cosmic eclipse"
       ],
+      "rotate_queries": true,
+      "max_queries": 3,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 3: the first two searches keep running every scan (the second feeds the asking reference or finds many listings the first misses); the rest, never run before, rotate through the third slot (+1 request per scan).",
       "_queries_note": "First two run every scan: the number search (38 genuine matches in the probe) and the PSA 10 search. Queries avoid '&'.",
       "match_any": [["blastoise", "piplup", "215/236"],
                     ["blastoise", "piplup", ["cosmic eclipse 215", "eclipse 215", "215 full art", "art 215", "215 blastoise", "215 psa", "215 bgs", "215 cgc"]],
@@ -296,6 +306,9 @@
         "magikarp wailord gx alternate art team up",
         "magikarp wailord gx full art team up"
       ],
+      "rotate_queries": true,
+      "max_queries": 3,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 3: the first two searches keep running every scan (the second feeds the asking reference or finds many listings the first misses); the rest, never run before, rotate through the third slot (+1 request per scan).",
       "_queries_note": "First two run every scan: the number search and the PSA 10 search (PSA labels mostly say '#161' without '/181'). Queries avoid '&'.",
       "match_any": [["magikarp", "wailord", "161/181"],
                     ["magikarp", "wailord", "team up", ["up 161", "fa 161", "161 fa", "161 full", "161 magikarp", "161 sun", "gx 161", "pokemon 161", "art 161", "161 psa", "161 bgs", "161 cgc", "psa 10 161"]],
@@ -340,6 +353,9 @@
         "rayquaza vmax alternate art evolving skies 218",
         "rayquaza vmax 218/203 alt art"
       ],
+      "rotate_queries": true,
+      "max_queries": 3,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 3: the first two searches keep running every scan (the second feeds the asking reference or finds many listings the first misses); the rest, never run before, rotate through the third slot (+1 request per scan).",
       "_queries_note": "First two run every scan (max_queries_per_watch=2): the set-name query was the strongest for raw copies (19 raw matches vs 11 for 'alt art'), the PSA query returned 56 PSA 10s.",
       "match_any": [["rayquaza", "218/203"], ["rayquaza", "evolving skies", ["evolving skies 218", "art 218", "secret 218", "vmax 218", "218 rayquaza", "218 psa", "218 bgs", "218 cgc"]]],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
@@ -385,6 +401,8 @@
         "rayquaza ex 123 full art dragons exalted",
         "2012 rayquaza ex 123/124 dragons exalted full art holo"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "match_any": [
         ["rayquaza", "123/124"],
         ["rayquaza", "123", ["full art", "fullart"], ["dragons exalted", "dragonsexalted"]]
@@ -452,6 +470,9 @@
         "karens umbreon vs japanese holo",
         "karens umbreon 091 1st edition"
       ],
+      "rotate_queries": true,
+      "max_queries": 3,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 3: the first two searches keep running every scan (the second feeds the asking reference or finds many listings the first misses); the rest, never run before, rotate through the third slot (+1 request per scan).",
       "match_any": [
         ["umbreon", "091/141"],
         ["karen", "umbreon", "091"],
@@ -495,6 +516,8 @@
         "pokemon squirtle minimum pack 007/018 japanese holo",
         "ポケモン ゼニガメ マクドナルド 007/018"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "match_any": [["squirtle", "007/018"], ["squirtle", "mcdonald", "007"]],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only McDonald's promo (no English print), so squirtle + 007/018 already gate identity; _norm strips CJK, matching rides on the Latin tokens (squirtle / 007/018 / mcdonald) sellers include, and 'any' keeps terse listings with no language word (e.g. 'Pokemon Card Squirtle McDonald's Promo 007/018') that 'japanese' would drop.",
@@ -540,8 +563,10 @@
         "espeon 1/75 neo discovery unlimited holo rare",
         "espeon neo discovery 1st edition 1/75 holo"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 4: the two raw searches and the PSA 9 search keep running every scan (they feed the asking references); the two older tail searches, never run before, rotate through the fourth slot (+1 request per scan).",
       "_search_review_note": "2026-10-18 search review: the never-run 'espeon 1/75 neo discovery holo rare' found 10 of 16 recent listings, so it replaces the narrower '...unlimited...' as the second query (the PSA 9 search stays third, every scan).",
-      "max_queries": 3,
+      "max_queries": 4,
       "_queries_note": "max_queries 3 (this watch only, +1 request per full scan): the two raw-focused searches keep running every scan and 'espeon neo discovery psa 9' adds the PSA 9 slabs, which are mostly titled in PSA's label form without '1/75'.",
       "match_any": [["espeon", "neo discovery", "1/75"],
                     ["espeon", "neo discovery", ["discovery 1 espeon", "edition 1 espeon", "unlimited 1 espeon", "edition 1 pokemon", "espeon 1 neo", "espeon 1 psa", "espeon 1 bgs", "espeon 1 cgc", "espeon 1 holo", "espeon holo rare 1", "holo rare 1", "espeon holo 1 psa", "espeon holo 1 bgs", "espeon holo 1 cgc", "holo espeon 1"]]],
@@ -583,6 +608,8 @@
         "pokemon lugia ex 031/play players club promo",
         "ルギアex 031/PLAY プレイヤーズ 2006"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "match_any": [
         ["lugia", ["031play", "31play"]],
         ["lugia", ["playersclub", "playerskit", "4thseasonsubscription"]],
@@ -632,6 +659,8 @@
         "squirtle deck vhs intro pack squirtle 1999",
         "ゼニガメ イントロパック 007 squirtle deck"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "match_any": [
         ["squirtle", ["squirtle deck", "intro pack", "intro deck", "intro squirtle", "vhs"], ["007", "no007"]],
         ["squirtle", ["squirtle deck", "intro pack", "intro deck", "intro squirtle", "vhs"], ["16", "18", "37", "40"]]
@@ -653,6 +682,8 @@
         "1999 pokemon japanese squirtle deck wartortle",
         "wartortle squirtle deck vhs intro pack 008"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "require": ["wartortle", ["squirtle deck", "intro pack", "intro deck", "vhs"]],
       "exclude": ["007"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
@@ -690,6 +721,8 @@
         "pokemon aquapolis houndoom holo e-reader",
         "houndoom aquapolis #h11 holo rare"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "require": ["houndoom", "aquapolis", "h11"],
       "exclude": ["sticker"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
@@ -708,6 +741,8 @@
         "pokemon aquapolis slowking holo e-reader",
         "slowking aquapolis #h22 holo rare"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "require": ["slowking", "aquapolis", "h22"],
       "exclude": ["sticker"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
@@ -726,6 +761,9 @@
         "azumarill aquapolis h4 holo",
         "azumarill h4/h32 aquapolis 2003 pokemon"
       ],
+      "rotate_queries": true,
+      "max_queries": 3,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 3: the first two searches keep running every scan (the second feeds the asking reference or finds many listings the first misses); the rest, never run before, rotate through the third slot (+1 request per scan).",
       "require": ["azumarill", "aquapolis", ["h4", "h04"]],
       "exclude": ["sticker"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
@@ -764,6 +802,8 @@
         "pokemon aquapolis umbreon holo e-reader",
         "umbreon aquapolis #h29 holo rare"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "require": ["umbreon", "aquapolis", "h29"],
       "exclude": ["sticker", "sequential", "espeon"],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
@@ -782,6 +822,9 @@
         "charizard 100/97 ex dragon holo secret rare",
         "pokemon ex dragon charizard 100/97 holo"
       ],
+      "rotate_queries": true,
+      "max_queries": 3,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 3: the first two searches keep running every scan (the second feeds the asking reference or finds many listings the first misses); the rest, never run before, rotate through the third slot (+1 request per scan).",
       "match_any": [["charizard", "100/97"], ["charizard", ["ex dragon 100", "100 ex dragon"]]],
       "_match_note": "2nd signature = PSA slab-label form ('2003 POKEMON EX DRAGON #100 CHARIZARD PSA 10'); 'frontiers' is excluded because EX Dragon Frontiers Charizard is also #100.",
       "exclude": ["frontier", "gold star", "100/101", "german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
@@ -801,6 +844,8 @@
         "pokemon dark dragonair 38/110 reverse holo",
         "dark dragonair reverse holo legendary collection 2002"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "_search_review_note": "2026-10-18 search review: 'dark dragonair legendary collection 38 reverse' is the only query that returns the number-less CGC 10, so it is second.",
       "match_any": [["dark dragonair", "38/110", "reverse"], ["dark dragonair", "legendary", "reverse"]],
       "_match_note": "2nd signature: slab labels often drop the number ('CGC 10 Dark Dragonair Legendary Collection Reverse Holo 38', '... #38 DARK DRAGONAIR-REVERSE FOIL PSA 8'); Legendary Collection has only one Dark Dragonair.",
@@ -821,6 +866,9 @@
         "giratina 10/127 platinum holo english",
         "giratina platinum #10 holo rare"
       ],
+      "rotate_queries": true,
+      "max_queries": 3,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request) with max_queries 3: the first two searches keep running every scan (the second feeds the asking reference or finds many listings the first misses); the rest, never run before, rotate through the third slot (+1 request per scan).",
       "match_any": [["giratina", "10/127"], ["giratina", "platinum", "lv 63"]],
       "_match_note": "2nd signature: Lv. 63 is this card (the Platinum 28/127 Giratina is Lv. 70), for titles like 'Giratina Lv. 63 Platinum Holo Rare 10 *P'.",
       "exclude": ["german", "french", "italian", "spanish", "portuguese", "dutch", "deutsch", "espanol", "francais", "nederlands", "portugues", "italiano", "liga", "ligue"],
@@ -839,6 +887,8 @@
         "pokemon japanese vs morty's ninetales",
         "morty ninetales 020/141 pokemon vs 1st edition"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "match_any": [["morty", ["ninetales", "ninetails"]], [["ninetales", "ninetails"], ["020/141", "ninetales 20/141", "ninetails 20/141", "20/141 vs", "vs 20/141"]]],
       "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
       "_language_note": "language 'any': Japan-only VS set (no English print — the English Gym sets use Kanto leaders, not Morty); _norm strips CJK so matching rides on the Latin 'morty'/'ninetales' tokens, and 'any' keeps terse listings a 'japanese' filter would drop.",
@@ -856,6 +906,8 @@
         "articuno 144 red/green deck gift set holo",
         "pokemon japanese red green gift set articuno holo"
       ],
+      "rotate_queries": true,
+      "_rotation_note": "Rotation on (2026-11-07, owner's request): the first search runs every scan; the rest, some never run before, take turns in the second slot (no extra requests). The asking reference comes from the first search alone (same values in the 2026-11-07 corpus).",
       "require": ["articuno", ["red green", "red/green", "gift set", "quick starter"]],
       "exclude": ["zapdos", "moltres"],
       "_exclude_note": "Sibling excludes: 'Articuno 144 Zapdos 145 Moltres 146 ... Gift Set PSA 10' is the 3-card set (a $25k 'new PSA 10' false alert); is_lot misses it because the titles carry no '/denominator' numbers.",
