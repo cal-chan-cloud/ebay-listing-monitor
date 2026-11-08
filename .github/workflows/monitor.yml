@@ -28,7 +28,9 @@ jobs:
     # Pinned (not ubuntu-latest, which moves to Ubuntu 26.04 from 2026-10-19): the stateful
     # monitor shouldn't change OS under it unannounced.
     runs-on: ubuntu-24.04
-    timeout-minutes: 250      # safety cap; 2 x 105-min segments self-exit (~213 min + setup)
+    # Safety cap. The steps' own caps add up to ~295 min (2 x 120 + persists + queue steps); the
+    # 2 x 105-min segments self-exit (~213 min + setup). The watchdog's TIMEOUT_MINUTES matches.
+    timeout-minutes: 300
     steps:
       # Check out the CURRENT tip of main, not the schedule-fire-time commit. GitHub
       # pins `schedule` runs to github.sha (main's HEAD when the cron fired); with 50-min
@@ -80,9 +82,11 @@ jobs:
       # HTTP 500/502 on every try for over a minute broke the chain for 2 h) the final step
       # below retries for 20 min after segment 2. Only after a healthy segment 1, so a job that
       # crashes in segment 2 gets at most one successor (whose own crash then ends the chain).
+      # (`!cancelled()` overrides the implicit success(): a failed segment-1 persist, e.g. a
+      # GitHub git outage, must not drop the chain.)
       - name: Queue the next run (early)
         id: early
-        if: steps.seg1.outcome == 'success' && steps.seg1.outputs.reroll != '1'
+        if: ${{ !cancelled() && steps.seg1.outcome == 'success' && steps.seg1.outputs.reroll != '1' }}
         continue-on-error: true
         timeout-minutes: 3
         env:
@@ -96,12 +100,14 @@ jobs:
           done
           echo "::warning::could not queue the next run yet; retrying after segment 2"
 
-      # Runs only if segment 1 + its persist succeeded (a crash/bad config stops here,
-      # visibly). If the remote advanced, the persist replayed onto the new tip, so this
-      # segment runs the newest pushed code/config.
+      # Runs only if segment 1 succeeded (a crash/bad config stops here, visibly). A failed
+      # segment-1 persist does NOT stop it: seen.db is still on this runner and segment 2's
+      # persist commits it 105 min later (skipping segment 2 used to drop the chain AND, if the
+      # outage outlasted both persists, the whole job's seen state). If the remote advanced, the
+      # persist replayed onto the new tip, so this segment runs the newest pushed code/config.
       - name: Run monitor (segment 2, ~105 min)
         id: seg2
-        if: steps.seg1.outputs.reroll != '1'
+        if: ${{ !cancelled() && steps.seg1.outcome == 'success' && steps.seg1.outputs.reroll != '1' }}
         timeout-minutes: 120
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

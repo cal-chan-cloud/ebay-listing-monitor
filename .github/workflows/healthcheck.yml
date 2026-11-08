@@ -26,7 +26,9 @@ permissions:
 jobs:
   watchdog:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # 10, not 5: in a GitHub API outage the gh calls (up to 60 s each) plus the bounded restart
+    # retries could outlast 5 min, and a cancelled watchdog sends neither the alert nor an email.
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v5

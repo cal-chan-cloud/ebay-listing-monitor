@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+import functools
 import html
 import json
 import os
@@ -24,6 +25,7 @@ import sqlite3
 import sys
 import threading
 import time
+import unicodedata
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -294,9 +296,20 @@ _CANDIDATE_10 = re.compile(
     r"\b(?:" + _G10 + r"|GEM" + _SEP + r"MI?N?T" + _SEP + r"10)"
     r"(?:\s*\?|\s*[-:(]?\s*(?:candidate|contender|potential|prospect|worthy|hopeful)\b"
     r"(?!\s+(?:penmanship|materials?|signatures?)\b))"
-    r"|\b(?:potential\s+for|possible|future|could\s+be|should\s+be|would\s+be|will\s+be|likely|easy|sure|not)"
-    r"\s+(?:an?\s+)?" + _G10 + r"\b",
+    r"|\b(?:potential\s+for|possible|future|could\s+be|should\s+be|would\s+be|will\s+be|likely|easy|sure|not|no)"
+    r"\s+(?:an?\s+)?" + _G10 + r"\b"
+    # reversed / verb pitches (2026-11-07 review): "candidate for a PSA 10", "worthy of PSA 10",
+    # "could grade PSA 10", "going for PSA 10"
+    r"|\b(?:candidate|contender|worthy|prospect)\s+(?:for|of)\s+(?:an?\s+)?" + _G10 + r"\b"
+    r"|\b(?:could|should|would|will|might|may)\s+(?:easily\s+)?grade\s+(?:an?\s+|as\s+(?:an?\s+)?|at\s+(?:an?\s+)?)?"
+    + _G10 + r"\b"
+    r"|\b(?:going|aiming|shooting)\s+for\s+(?:an?\s+)?" + _G10 + r"\b",
     re.IGNORECASE)
+# A title that calls the card raw is never a slab, whatever grade it name-drops ("Raw - Could Grade
+# PSA 10", "Raw PSA 10 Centering"): read as a PSA 10 it fires a false target @mention, and every
+# target watch's raw price sits under its PSA 10 target. (0 of 7,852 real titles saying raw/ungraded
+# were slabs, 2026-11-07.)
+_RAW_WORD = re.compile(r"\b(?:raw|ungraded|un-graded|not\s+graded|non[-\s]?graded)\b", re.IGNORECASE)
 # A slab whose grader is unnamed or not in our list ("Foil Graded", "PRISTINE 10 GOLD LABEL",
 # "OCE - PRISTINE 10", "Ace Graded Mint 9"). Runs only after the psa10/bgs/cgc10 checks.
 # Raw phrasings stay ungraded: "Un-/Non-/Pre-/Self-graded" (hyphenated or spaced), "never
@@ -337,15 +350,16 @@ _PSA_CMP = re.compile(
     r"|\bPSA" + _SEP + r"10\s+equiv\w*\b"
     r"|\b(?:like|equivalent\s+to)\s+(?:an?\s+)?PSA" + _SEP + r"10\b",
     re.IGNORECASE)
-# ...and a bare "(PSA 10)" or a crossover pitch next to ANOTHER grader's grade is the same claim
-# about that slab ("Espeon & Deoxys GX BGS 9.5 Tag Team Power Collection #SM240 (Psa 10)", a $3,000
-# BGS 9.5 seen 2026-11-06; "CGC 10 Tyranitar V 155/163 ... CGC 10 PSA 10 XOVER", CGC 10s at
-# $550-595 seen 2026-11-07; "CGC 10 (=PSA 10)"): read as a PSA 10 it would fire a false "PSA 10
-# under target" @mention. Without another grade in the title, "(PSA 10)" stays a PSA 10 (above).
+# ...and ANY "PSA 10" mention next to ANOTHER grader's grade is the same claim about that slab:
+# "Espeon & Deoxys GX BGS 9.5 Tag Team Power Collection #SM240 (Psa 10)" (a $3,000 BGS 9.5 seen
+# 2026-11-06), "CGC 10 Tyranitar V 155/163 ... CGC 10 PSA 10 XOVER" (CGC 10s at $550-595),
+# "Pokemon BGS 9.5 Mewtwo & Mew GX #SM191 Tag Team Ton Promo 2019 PSA 10" ($2,500, 2026-11-07),
+# "CGC 10 (=PSA 10)", "BGS 9.5 (PSA 10 Gem Mint)", "CGC 10 - PSA 10 Quality". Read as a PSA 10 it
+# would fire a false "PSA 10 under target" @mention. The trailing run stops at another grader's
+# name so it can't swallow the real grade. Without another grade, "(PSA 10)" stays a PSA 10.
 _PSA10_PAREN = re.compile(
-    r"\(\s*[=~]?\s*PSA" + _SEP + _PSA_LABEL + r"10\s*\)"
-    r"|\bPSA" + _SEP + _PSA_LABEL + r"10\s*(?:x[\s-]?over|cross[\s-]?over)\w*"
-    r"|\b(?:x[\s-]?over|cross[\s-]?over)\w*(?:\s+(?:to|for|at|as))?\s+(?:an?\s+)?PSA" + _SEP + _PSA_LABEL + r"10\b",
+    r"[(\[]?\s*[=~/]?\s*\bPSA" + _SEP + _PSA_LABEL + r"10\b"
+    r"(?:(?!\b(?:BGS|BECKETT|CGC|SGC|TAG|ACE|ARS|GMA|HGA|KSA|AGS|OCE)\b)[^)\]]){0,24}[)\]]?",
     re.IGNORECASE)
 _OTHER_GRADE = re.compile(
     r"\b(?:BGS|BECKETT|CGC|SGC|ACE|TAG|ARS|GMA|HGA|KSA|AGS|OCE)" + _SEP
@@ -358,6 +372,7 @@ _CGC_PRISTINE = re.compile(r"\bCGC" + _SEP + r"PRISTINE\b(?!\s*(?:candidate|pote
 
 def classify_grade(title: str) -> str:
     """Return a bucket key: 'psa10', 'bgs10', 'bgs9.5', 'cgc10', 'psa9', 'other_graded', or 'ungraded'."""
+    raw = bool(_RAW_WORD.search(title or ""))
     title = _PSA_CMP.sub(" ", title)
     if _PSA10_PAREN.search(title) and _OTHER_GRADE.search(_PSA10_PAREN.sub(" ", title)):
         title = _PSA10_PAREN.sub(" ", title)
@@ -366,15 +381,15 @@ def classify_grade(title: str) -> str:
     title = _CANDIDATE_9.sub(" ", title)
     t = title.upper()
     if _PSA10.search(t):
-        return "psa10"
+        return "ungraded" if raw else "psa10"
     if _BGS95.search(t):
-        return "bgs9.5"
+        return "ungraded" if raw else "bgs9.5"
     if _BGS10.search(t):
-        return "bgs10"
+        return "ungraded" if raw else "bgs10"
     if _CGC10.search(t) or _CGC_PRISTINE.search(t):
-        return "cgc10"
+        return "ungraded" if raw else "cgc10"
     if _PSA9.search(t):
-        return "psa9"
+        return "ungraded" if raw else "psa9"
     if _GRADED_HINT.search(title) or _GRADED_NUM.search(title) or _UNNAMED_SLAB.search(title):
         return "other_graded"
     return "ungraded"
@@ -396,11 +411,14 @@ _LANG_EN = re.compile(r"\b(english|eng)\b", re.IGNORECASE)
 # 'ita'/'ital'/'deu'. Deliberately NOT 'fr'/'de'/'it'/'es' — those collide with English
 # words and with the 'FR' = Fair condition-grade abbreviation (would drop real English cards).
 _LANG_EU = re.compile(
-    r"\b(?:german|deutsch|french|francais|français|italian|italiano|italien|"
-    r"spanish|espanol|español|portuguese|portugues|português|dutch|nederlands|"
+    r"\b(?:german|deutsch(?:e[rsn]?)?|french|fran[cç]ais(?:e|es)?|italian[oa]?|italien(?:ne)?|"
+    r"spanish|espa[nñ]ol(?:a|as|es)?|portuguese|portugu[eê]s|dutch|nederlands|"
     r"allemand|spagnolo|tedesco|ita|ital|deu)\b",
     re.IGNORECASE,
 )
+# "NOT ENGLISH" / "Non-English Print" names a foreign print without naming the language
+# (2026-11-07 review: it read as English, since only the English marker matched).
+_NOT_EN = re.compile(r"\b(?:not|non)[-\s]?(?:english|eng)\b", re.IGNORECASE)
 # Sellers of English cards often write "English NOT Japanese" / "not a Japan import" /
 # "not the Japanese version"; the bare foreign word would otherwise flip the listing to
 # that language and get it dropped by an English-only watch. Strip negated mentions before
@@ -437,6 +455,8 @@ def title_language(title: str) -> str:
         return "cjk"
     if _LANG_EU.search(title):
         return "eu"
+    if _NOT_EN.search(title):
+        return "foreign"
     if _LANG_EN.search(title):
         return "english"
     return "unknown"
@@ -487,13 +507,22 @@ DEFAULT_EXCLUDE = ["proxy", "orica", "oricard", "custommade", "handmade", "metal
                    # 'toy' (it would hit 'Toys R Us' promos). These are global with no per-watch
                    # opt-out: a watch for a figure-bundled promo card can't use these words.
                    "figure", "figurine", "figuarts", "tamashi", "logotype", "statue",
-                   "nendoroid", "funko", "acrylic stand"]
+                   "nendoroid", "funko", "acrylic stand",
+                   # fakes that say so (2026-11-07 review): a "$15 ... PSA 10 Replica Slab" or a
+                   # "Fan Made ... Custom Slab" fired PSA 10 targets. Not bare "custom": "No Customs Fees".
+                   "replica", "fan made", "fanmade", "custom slab", "custom label"]
 # 'plush' must be a whole word: as a normalized substring it hits "plus hard case".
 _PLUSH_RE = re.compile(r"\bplush(?:y|ies?)?\b", re.IGNORECASE)
 
 
+@functools.lru_cache(maxsize=65536)
 def _norm(s: str) -> str:
-    """Lowercase and strip non-alphanumerics so 'OP05-119' == 'op05 119' == 'op05119'."""
+    """Lowercase and strip non-alphanumerics so 'OP05-119' == 'op05 119' == 'op05119'. Accents and
+    full-width forms fold to plain letters first ('Pokémon' -> 'pokemon', 'Française' ->
+    'francaise', '０９１／１４１' -> '091141'); they used to be dropped outright ('pokmon', so a
+    'francais' exclude could never catch 'Française')."""
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
@@ -580,9 +609,22 @@ def is_played(title):
     return bool(_PLAYED_RE.search(_HITPOINTS_RE.sub(" ", title or "")))
 
 
+# "not the VMAX 218/203", "(Not SM240 Promo)", "non holo 20/75": a number or promo code named to rule
+# a sibling OUT. Up to two words between, each starting with a letter; never "not Japanese/..."
+# (a language aside, handled by the language gate), and never "vs": Pokemon VS is a set name
+# ("Karen's Umbreon Holo VS 091/141" is 30 of 30 real "vs + number" titles, 2026-11-07).
+_NEG_ID_RE = re.compile(
+    r"\b(?:not|non|rather\s+than|instead\s+of|isn'?t|aren'?t)\b"
+    r"(?!\s+(?:an?\s+|the\s+|from\s+)?" + _NEG_LW + r"\b)"
+    r"(?:\s+[a-z][\w'-]*){0,2}?\s+#?(?:\d{1,3}/\d{2,3}|[a-z]{1,4}-?\d{2,4})\b",
+    re.IGNORECASE)
+
+
 def _require_ok(nt: str, require) -> bool:
     """AND of clauses; each clause is a string (must be present) or a list of
     alternatives (at least one must be present)."""
+    if isinstance(require, str):
+        require = [require]     # a bare string is ONE clause (iterating it split it into letters)
     for clause in (require or []):
         if isinstance(clause, (list, tuple)):
             if not any(_norm(alt) in nt for alt in clause if _norm(alt)):
@@ -607,13 +649,21 @@ def matches_filters(title: str, require, exclude, match_any=None) -> bool:
             return False
     if _PLUSH_RE.search(title or ""):
         return False
+    # Per-watch excludes judge the title without negated language words: "English NOT German"
+    # is not a German print, but a 'german' exclude used to drop it.
+    ex_nt = _norm(_NEG_LANG.sub(" ", title or "")) if exclude else nt
     for term in (exclude or []):
         t = _norm(term)
-        if t and t in nt:
+        if t and t in ex_nt:
             return False
+    # The card's identity is matched without numbers named only to rule them out ("Rayquaza V
+    # 194/203 ... Not the VMAX 218/203" is not the VMAX; "(Not SM240 Promo)").
+    id_nt = _norm(_NEG_ID_RE.sub(" ", title or ""))
     if match_any:
-        return any(_require_ok(nt, sig) for sig in match_any)
-    return _require_ok(nt, require)
+        if isinstance(match_any, str):
+            match_any = [match_any]
+        return any(_require_ok(id_nt, sig) for sig in match_any)
+    return _require_ok(id_nt, require)
 
 
 # ---------------------------------------------------------------------------
@@ -767,7 +817,7 @@ def _parse_listed_at(li_text, now=None):
         try:
             local = datetime(year, mo, day, hh, mi)
         except ValueError:
-            return None
+            continue    # 'Feb-29' in a non-leap year: it can only be an earlier year's stamp
         utc = (local - _pacific_utcoffset(local)).replace(tzinfo=timezone.utc)
         if utc <= now + timedelta(days=1):
             return utc
@@ -845,9 +895,24 @@ def parse_price(text: str):
     """Return (display_string, low_float_or_None, currency_or_None)."""
     text = " ".join(text.split())
     currency = detect_currency(text)
-    m = re.search(r"[\d,]+\.?\d*", text.replace("$", ""))
-    low = float(m.group(0).replace(",", "")) if m else None
+    # Starts at a DIGIT: '[\d,]+' matched a lone comma ("See price, $12.99") and float(',') raised,
+    # which lost the whole results page.
+    m = re.search(r"\d[\d,]*(?:\.\d+)?", text.replace("$", ""))
+    try:
+        low = float(m.group(0).replace(",", "")) if m else None
+    except ValueError:
+        low = None
     return text, low, currency
+
+
+# A multi-variation listing's shown price is a RANGE ("$0.99 to $899.99"); its low end is some other
+# variation's price, so it is never compared with a price target (a "You Pick" page naming the
+# card would have @mentioned at $0.99).
+_PRICE_RANGE = re.compile(r"\d\s*to\s*\D{0,4}\d", re.IGNORECASE)
+
+
+def is_price_range(price_str) -> bool:
+    return bool(_PRICE_RANGE.search(price_str or ""))
 
 
 def _fmt_price(v):
@@ -1340,6 +1405,17 @@ def _market_circuit_open(conn, now):
     return False, state
 
 
+def _market_recovered(conn):
+    """True only once a sold fetch has really SUCCEEDED (it stores fails=0). A cooldown that
+    merely lapsed leaves the old failure count (or a fresh failed probe's 1), and announcing
+    'sold comps readable again' then was false: the next pass re-sent 'unavailable'."""
+    try:
+        state = json.loads(meta_get(conn, "market_circuit", "") or "{}")
+    except Exception:
+        return False
+    return int(state.get("fails", 0) or 0) == 0 and not state.get("until")
+
+
 def _market_record_result(conn, state, ok, now):
     """Track consecutive sold-fetch failures; open the breaker past the threshold."""
     if ok:
@@ -1548,6 +1624,13 @@ def _post_webhook(webhook_url, payload, attempts=4):
         last = i == attempts - 1
         try:
             resp = requests.post(webhook_url, json=payload, timeout=20)
+        except requests.exceptions.ReadTimeout:
+            # The request went out but Discord didn't answer in time: it has usually posted the
+            # message anyway. Re-sending turned one listing into many identical pings (each retry
+            # here, then every pass while the listing stayed unseen), so count it as delivered.
+            print("Discord didn't answer within 20 s; treating the message as delivered (not re-sending).",
+                  file=sys.stderr)
+            return
         except requests.RequestException:
             if last:
                 raise
@@ -1866,6 +1949,13 @@ def under_target(rule, price):
     return price is not None and (price <= rule["below"] if rule.get("inclusive") else price < rule["below"])
 
 
+def price_alert_sig(rules):
+    """A watch's price rules as stored in meta pa_sig:<watch> (a change re-syncs its flags). An
+    inclusive at_or_below rule adds a marker, so existing 'below' rules keep their old signature."""
+    return json.dumps(sorted([r["grade"] or "*", r["below"]] + (["<="] if r.get("inclusive") else [])
+                             for r in rules))
+
+
 def price_alert_hit(rules, grade, price):
     """Return the first price_alert rule matched by (grade, price), or None.
 
@@ -1897,6 +1987,12 @@ EGRESS = {"country": None}
 PRIO_CLOCK = {"at": None}
 # When each fast task (sweep / price band, keyed like scan_tasks()) last ran (time.monotonic()).
 TASK_CLOCK = {}
+# CI hard stop for a pass (time.monotonic()), set by main's loop: past it a pass starts no further
+# watch or task. The loop only starts a full pass that the previous pass's duration says fits, so
+# a pass slower than that one (a 403 storm, a slower pace) could otherwise overrun the workflow
+# step's timeout-minutes, which fails the step and drops the requeue chain.
+PASS_STOP = {"at": None}
+PASS_OVERRUN_SECONDS = 600   # how far past the loop's own deadline a started pass may run
 
 
 def scan_tasks(cfg):
@@ -1926,7 +2022,11 @@ def scan_tasks(cfg):
         iv = every_p if prio else every
         if not names or iv <= 0:
             continue
-        params = {"_ipg": str(max(60, min(240, int(sw.get("per_page", 240)))))}
+        try:
+            per_page = int(sw.get("per_page", 240))
+        except (TypeError, ValueError):
+            per_page = 240
+        params = {"_ipg": str(max(60, min(240, per_page)))}
         if not any(wmap[n].get("allow_auctions", auctions) for n in names):
             params["LH_BIN"] = "1"      # nothing here alerts on auctions: don't spend slots on them
         tasks.append({"key": "sweep:" + sw["query"], "kind": "sweep", "every": iv, "rank": 0 if prio else 2,
@@ -1935,9 +2035,15 @@ def scan_tasks(cfg):
         for name, w in wmap.items():
             q = w.get("price_band_query") or (watch_queries(w) or [None])[0]
             for rule in (parse_price_alerts(w) if q else []):
-                floor = w.get("price_band_floor")
-                if floor is None:
-                    floor = max(float(w.get("min_price") or 0), 0.4 * rule["below"])
+                try:
+                    floor = w.get("price_band_floor")
+                    if floor is None:
+                        floor = max(float(w.get("min_price") or 0), 0.4 * rule["below"])
+                    float(floor)
+                except (TypeError, ValueError):   # a typo ("$300") must not stop every scan
+                    print(f"[{name}] min_price / price_band_floor isn't a number: no price band for this "
+                          "watch until it's fixed.", file=sys.stderr)
+                    continue
                 params = {"LH_BIN": "1", "_sop": "15", "_ipg": "240", "_udhi": f"{rule['below']:.2f}"}
                 if float(floor) > 0:
                     params["_udlo"] = f"{float(floor):.2f}"
@@ -1965,6 +2071,12 @@ def scan_diagnosis(gate_rej, locs, curs):
 
 # Passes a pending one-time baseline may be blocked by a failed query before it completes anyway.
 BL_MAX_BLOCKED = 3
+
+# Bump when the CODE that decides a match changes in a way that can newly match listings that are
+# already up (grade buckets, title normalisation, the lot/sealed/played/language gates). It is part
+# of every watch's rules signature, so each watch re-baselines silently (as after a config rules
+# edit) instead of pinging old listings as new. Code changes used to slip past flt_sig entirely.
+MATCHER_VERSION = "2026-11-07"
 
 # Bump when the asking/sold REFERENCE definition changes (v2: played copies excluded, pool
 # limited to the alertable region): the next full scan re-baselines already-seen listings'
@@ -2035,6 +2147,11 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
     idle_watches = []       # watches that matched nothing this pass (their rows aren't pruned)
     pending_bl = []         # (meta key, value, usable) one-time per-watch baselines (see below)
     pass_qdone = {}         # watch -> queries credited by an earlier priority round of THIS pass
+    # Watches that started this pass on their silent first run: they stay silent for the whole
+    # pass. (The first run used to end at the first sweep that stored a row, so the band and
+    # own-query runs right after it @mentioned listings that had sat under target for weeks.)
+    pass_seeding = set()
+    pass_backlog = Counter()   # under-target backlog pings per watch this pass (capped at 3)
     gate_rej = Counter()    # per-gate rejection counts (diagnostics)
     scan_locs = Counter()   # raw "Located in" values seen this pass
     scan_curs = Counter()   # price currencies seen this pass
@@ -2134,8 +2251,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         # already-seen flags from the STORED prices, so an edit can't @mention every
         # listing already sitting under the new target (only true crossings ping).
         pa_key = f"pa_sig:{name}"
-        pa_sig = json.dumps(sorted([r["grade"] or "*", r["below"]] + (["<="] if r.get("inclusive") else [])
-                                   for r in price_alerts))
+        pa_sig = price_alert_sig(price_alerts)
         seen_grade = {r[0]: r[5] for r in _rows}   # stored bucket (kept current below)
         seen_last = {r[0]: r[6] for r in _rows}    # last OBSERVED price
         if not dry_run and meta_get(conn, pa_key) != pa_sig:
@@ -2159,8 +2275,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         # a per-watch flag, NOT "no seen rows": a rare card with no live listings (or all
         # rows pruned after a quiet month) must still alert its first real listing.
         seed_key = f"seeded:{name}"
-        seeded_before = bool(seen_prices) or meta_get(conn, seed_key) == "1"
+        seeded_before = (bool(seen_prices) or meta_get(conn, seed_key) == "1") and name not in pass_seeding
         seeding = reseed or (not seeded_before and not notify_existing and not dry_run)
+        if seeding and not reseed:
+            pass_seeding.add(name)
         # Per-query silent baseline: a query this watch has never run (a rotated-in tail
         # query, or a newly added/edited phrasing) surfaces OLD listings the watch never
         # saw. Listings found ONLY by such fresh queries are seeded silently, not alerted.
@@ -2169,8 +2287,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         wmax_q = watch_max_queries(watch, max_q)
         if task is None:
             _window = query_window(_wq, wmax_q, wrot if rotating else None)
-        else:   # a sweep is one more "query" of the watch (its first run seeds); a band is none
-            _window = [task["query"]] if task["kind"] == "sweep" else []
+        else:   # a sweep is one more "query" of the watch (its first run seeds); so is each price
+            # band, keyed by its rule ("band:<watch>:<grade>:<target>"): a new, raised or added
+            # target's band would otherwise @mention every never-seen listing already under it.
+            _window = [task["query"]] if task["kind"] == "sweep" else [task["key"]]
         _qd_raw = meta_get(conn, f"qdone:{name}")
         if _qd_raw:
             q_done = set(json.loads(_qd_raw))
@@ -2185,7 +2305,6 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         seed_q = set() if (notify_existing and not seeded_before) else fresh_q
         matched_q = set()     # queries that produced a matched listing this pass
         matched = new_count = drop_count = below_count = pa_count = 0
-        backlog_pings = 0     # under-target backlog listings pinged instead of seeded (capped)
 
         def _log_ping(kind, lst, grade):
             la = lst.get("listed_at") if isinstance(lst.get("listed_at"), datetime) else None
@@ -2235,7 +2354,9 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                                                 # Buy-It-Now-only searches return other listings
                                                 "bin" if not allow_auctions else "all"]
             # opting played copies back in makes old ones match: re-baseline (absent = default)
-            + ([] if exclude_played else ["keep_played"]),
+            + ([] if exclude_played else ["keep_played"])
+            # ...and so does a matcher CODE change (MATCHER_VERSION)
+            + [MATCHER_VERSION],
             sort_keys=True, default=str)
         _flt_prev = meta_get(conn, flt_key)
         filters_changed = _flt_prev is not None and _flt_prev != flt_sig
@@ -2266,18 +2387,30 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         ref_pool = [x for x in listings
                     if (all_regions or passes_region(x.get("location"), regions, allow_unknown_region))
                     and (_pin is None or not x.get("_q") or (x["_q"] & _pin))]
+        def _stored_ask_ref():
+            try:
+                return {g: float(v) for g, v in json.loads(meta_get(conn, f"ask_ref:{name}") or "{}").items()
+                        if v is not None}
+            except (ValueError, TypeError, AttributeError):
+                return {}
         if task is None:
             asking_ref = active_asking_reference(ref_pool, watch, wanted,
                                                  pct=cfg_ask_pct, min_listings=cfg_ask_min)
-            _ar = json.dumps(asking_ref, sort_keys=True)
-            if not dry_run and meta_get(conn, f"ask_ref:{name}") != _ar:
-                meta_set(conn, f"ask_ref:{name}", _ar)   # for this watch's sweeps / price bands
+            # The reference comes from the pinned queries (the whole window for a fixed watch). When
+            # one of them failed this pass (a 403 that outlasted every retry, ~5% of searches) the
+            # pool was partial or empty, and storing that wiped the reference this watch's sweeps
+            # and bands use until the next pass: a deal a sweep found meanwhile got a plain "new"
+            # ping, then a second "below market" ping minutes later (2026-11-07: Oshawott $62 vs
+            # $75, 2 min apart; 25 such pairs in 3 weeks). Keep the last good reference instead.
+            _ref_q = _pin if _pin is not None else set(_window)
+            if _ref_q and _ref_q <= set(getattr(listings, "q_ok", ()) or ()):
+                _ar = json.dumps(asking_ref, sort_keys=True)
+                if not dry_run and meta_get(conn, f"ask_ref:{name}") != _ar:
+                    meta_set(conn, f"ask_ref:{name}", _ar)   # for this watch's sweeps / price bands
+            else:
+                asking_ref = _stored_ask_ref() or asking_ref
         else:
-            try:
-                asking_ref = {g: float(v) for g, v in json.loads(meta_get(conn, f"ask_ref:{name}") or "{}").items()
-                              if v is not None}
-            except (ValueError, TypeError, AttributeError):
-                asking_ref = {}
+            asking_ref = _stored_ask_ref()
         refs = {}
         for g in wanted:
             if market_prices.get(g) is not None:
@@ -2364,7 +2497,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
             # listing's own currency. Only compare USD (or currency-unknown, treated as
             # USD like below-market) listings, so a £2,000 / ¥2,000 listing can't
             # false-trigger a "below $2,700" @mention. price_alert_hit(None) -> no hit.
-            pa_cur = cur if lst.get("currency") in (None, "USD") else None
+            pa_cur = cur if (lst.get("currency") in (None, "USD") and not is_price_range(cur_str)) else None
 
             # ---- already-seen listing: watch for a price drop / below-market ----
             if item_id in seen_prices:
@@ -2408,7 +2541,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                 # because the threshold is fixed (unlike the jittery below-market ref).
                 pa_rule = price_alert_hit(price_alerts, grade, pa_cur)
                 prior_pa = pa_flags.get(item_id, 0)
-                new_pa = 1 if pa_rule else 0
+                # A sighting priced in another currency can't be compared (pa_cur None): keep the
+                # flag as it was. Clearing it re-armed the target, so the next USD sighting of the
+                # same, unchanged price @mentioned again.
+                new_pa = (1 if pa_rule else 0) if pa_cur is not None else prior_pa
                 pa_cross = bool(pa_rule and not prior_pa and not pa_bl)
                 if pa_cross:
                     thr = pa_rule["below"]
@@ -2571,9 +2707,12 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
             # ...but a backlog listing UNDER a price target is exactly what the target is for:
             # ping it (labelled as an older listing) rather than record it as already alerted.
             # Capped, so a reworked rule can't flood. (A watch's very first run stays silent.)
-            if backlog and pa_mention and not seeding and backlog_pings < 3:
+            # (Per PASS, not per run: a sweep, a band and the own queries each surfacing 3 used to
+            # give 9. Never for a band's own first run: its whole page is under target by design.)
+            if (backlog and pa_mention and not seeding and pass_backlog[name] < 3
+                    and not (task is not None and task["kind"] == "band")):
                 backlog = False
-                backlog_pings += 1
+                pass_backlog[name] += 1
             if seeding or backlog:
                 # Normal first-run seeding, OR the one-time silent seed of CGC 10 listings
                 # that were already up when the grade was added (avoids an alert storm), OR
@@ -2598,7 +2737,8 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                 if lst.get("listed_at"):
                     _secs = (datetime.now(timezone.utc) - lst["listed_at"]).total_seconds()
                     if -300 < _secs < 7 * 86400:   # a clock/timezone slip must not skew the stats
-                        pass_latency.append(max(0.0, _secs))
+                        if _secs < STALE_LISTING_HOURS * 3600:   # an older listing newly found isn't ping lag
+                            pass_latency.append(max(0.0, _secs))
                         _lag = f" (listed {max(0.0, _secs) / 60:.1f} min ago)"
                 print(f"[{ts}] [{name}] notified: {GRADE_LABELS[grade]} {cur_str}"
                       f"{' 🔥below-market' if below else ''}{' 🎯target' if pa_mention else ''}{_lag} {lst['url']}")
@@ -2719,7 +2859,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
 
     def _band_hit(t, x):
         rule, p = t["rule"], x.get("price_low")
-        return (under_target(rule, p) and x.get("currency") in (None, "USD")
+        return (under_target(rule, p) and x.get("currency") in (None, "USD") and not is_price_range(x.get("price_str"))
                 and (not rule.get("grade") or classify_grade(x["title"]) == rule["grade"]))
 
     def _run_task(t):
@@ -2735,9 +2875,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
             res, ok = [], False
         if ok:
             listings = _Results(x for x in res if t["kind"] == "sweep" or _band_hit(t, x))
+            qtok = t["query"] if t["kind"] == "sweep" else t["key"]   # a band's baseline is per rule
             for x in listings:
-                x["_q"], x["_via"] = {t["query"]}, t["kind"]
-            listings.page_ok, listings.q_ok = True, frozenset({t["query"]})
+                x["_q"], x["_via"] = {qtok}, t["kind"]
+            listings.page_ok, listings.q_ok = True, frozenset({qtok})
             # A geo-shifted page (non-US runner) must not count as this sweep's first run.
             listings.na_ok = bool(res) and sum(canon_region(x.get("location")) in ("US", "CA")
                                                for x in res) >= 0.5 * len(res)
@@ -2759,11 +2900,14 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         come first, so they keep their cadence; the rest wait for the next gap)."""
         n = 0
         for t in tasks:
-            if limit is not None and n >= limit:
+            if (limit is not None and n >= limit) or _past_stop():
                 break
             if task_due(t):
                 _run_task(t)
                 n += 1
+
+    def _past_stop():
+        return PASS_STOP["at"] is not None and time.monotonic() >= PASS_STOP["at"]
 
     def _prio_round():
         nonlocal prio_rounds, last_round
@@ -2776,6 +2920,24 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
     def _prio_due():
         return bool(prio_list) and (last_round is None or time.monotonic() - last_round >= prio_every)
 
+    # One-time (2026-11-07): price bands gained a first-run baseline keyed by rule. The bands of
+    # rules that were already running are credited as run, so the deploy itself seeds nothing;
+    # an edited or new rule's band (its pa_sig differs) still gets its silent first run.
+    if tasks and not dry_run and meta_get(conn, "band_bl_v") != "1":
+        _by = {w.get("name"): w for w in watches if isinstance(w, dict)}
+        for t in tasks:
+            bname = t["watches"][0] if t["kind"] == "band" else None
+            bw = _by.get(bname)
+            if (bw is None or meta_get(conn, f"seeded:{bname}") != "1"
+                    or meta_get(conn, f"pa_sig:{bname}") != price_alert_sig(parse_price_alerts(bw))):
+                continue
+            try:
+                _qd = set(json.loads(meta_get(conn, f"qdone:{bname}") or "[]"))
+            except (ValueError, TypeError):
+                _qd = set()
+            if t["key"] not in _qd:
+                meta_set(conn, f"qdone:{bname}", json.dumps(sorted(_qd | {t["key"]})))
+        meta_set(conn, "band_bl_v", "1")
     if tasks:
         _run_due_tasks()
     if tasks_only:
@@ -2784,6 +2946,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         if _prio_due():           # first, unless a priority pass just ran
             _prio_round()
         for wi, watch in enumerate(watches):
+            if _past_stop():
+                print(f"[{ts}] pass stopped early: this segment's time is up ({len(watches) - wi} "
+                      "watch(es) wait for the next run).", file=sys.stderr)
+                break
             if id(watch) in prio_ids:
                 continue          # covered by the priority rounds / passes
             _run(wi, watch, _fetch(watch, rot) if stream else fetched.get(wi, []), rot)
@@ -2824,9 +2990,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
               f"{fstats.get('softblock', 0)} soft-block page(s), {fstats.get('retry_ok', 0)} recovered on "
               f"retry, {fstats.get('failed', 0)} failed"
               + (f"; prio rounds {prio_rounds}" if prio_rounds else "")
-              + (f"; sweeps {task_runs['sweep']}, price bands {task_runs['band']}"
-                 + (f" ({task_runs['sweep_failed'] + task_runs['band_failed']} failed)"
-                    if task_runs['sweep_failed'] + task_runs['band_failed'] else "")
+              + (f"; sweeps {task_runs['sweep']}"
+                 + (f" ({task_runs['sweep_failed']} failed)" if task_runs['sweep_failed'] else "")
+                 + f", price bands {task_runs['band']}"
+                 + (f" ({task_runs['band_failed']} failed)" if task_runs['band_failed'] else "")
                  if task_runs else "")
               + (f"; listed->pinged median {lat[len(lat) // 2] / 60:.1f} min, max {lat[-1] / 60:.1f} min "
                  f"over {len(lat)} alert(s)" if lat else "")
@@ -2842,7 +3009,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
     if not dry_run and not reseed:
         errkey = ", ".join(sorted(set(watch_errors)))
         if errkey != meta_get(conn, "watch_error_notice", ""):
-            meta_set(conn, "watch_error_notice", errkey)
+            _sent = True
             if webhook and not webhook.startswith("PASTE_"):
                 try:
                     if errkey:
@@ -2853,7 +3020,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                         send_simple_discord(webhook, "✅ Watch errors cleared",
                                             "All watches scanning again.", 0x2E7D32)
                 except Exception as e:
+                    _sent = False   # record it only once delivered: the next pass re-sends it
                     print(f"watch error notice failed: {e}", file=sys.stderr)
+            if _sent:
+                meta_set(conn, "watch_error_notice", errkey)
 
     # --- after all watches: prune stale rows + health check on the whole scan ---
     # A global one-time baseline is retired only once EVERY relevant watch has recorded its
@@ -2894,7 +3064,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                                         msg, 0xF39C12)
                 except Exception as e:
                     print(f"market notice error: {e}", file=sys.stderr)
-        elif not mkt_open and notice:
+        elif not mkt_open and notice and _market_recovered(conn):
             meta_set(conn, "market_notice", "")
             print(f"[{ts}] market pricing recovered.")
             if webhook and not webhook.startswith("PASTE_"):
@@ -2968,7 +3138,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                     print(f"health alert error: {e}", file=sys.stderr)
             if _notified:
                 meta_set(conn, "health", "down")
-        elif healthy and prev == "down":
+        elif healthy and prev == "down" and total_matched > 0:
+            # (a pass that scraped listings but matched nothing is not a recovery: after a
+            # 0-scraped DOWN its streak restarts at 1, which read as healthy and flapped the
+            # notices: "recovered", then DOWN again two passes later with a second @mention)
             meta_set(conn, "health", "ok")
             print(f"[{ts}] HEALTH RECOVERED.")
             if webhook and not webhook.startswith("PASTE_"):
@@ -3053,6 +3226,15 @@ def _validate_watch(w, tag, valid_grades, warnings):
                     else "the clause is a no-op (matches every title)"))
             elif all(any(e in a for e in excl) for a in live):
                 warnings.append(f"{tag}: clause {cl!r} contains an exclude term — this signature can never match")
+    if isinstance(w.get("require"), str):
+        warnings.append(f"{tag}: 'require' is a string; write it as a list ([{w['require']!r}])")
+    _ma = w.get("match_any")
+    if _ma is not None and (not isinstance(_ma, (list, tuple)) or any(not isinstance(s, (list, tuple)) for s in _ma)):
+        warnings.append(f"{tag}: 'match_any' must be a list of signatures (each a list); a bare string "
+                        "signature matches on that one term alone")
+    if _bad_number(w.get("price_band_floor")):
+        warnings.append(f"{tag}: 'price_band_floor'={w.get('price_band_floor')!r} must be a number "
+                        "(the watch gets no price band)")
     if not (w.get("queries") or w.get("query")):
         warnings.append(f"{tag}: no 'queries'/'query' to search")
     if not w.get("require") and not w.get("match_any"):
@@ -3319,7 +3501,15 @@ def main():
             if EGRESS["country"] and EGRESS["country"] not in allowed and request_reroll(
                     conn, f"runner egress is {EGRESS['country']}, eBay would serve a non-US-buyer page"):
                 sys.exit(EXIT_REROLL)
+        # No webhook in CI (a deleted/renamed/emptied secret): every alert would be printed and
+        # recorded as sent, the run would stay green and requeue, and nobody would ever be told.
+        _hook = os.environ.get("DISCORD_WEBHOOK_URL") or cfg.get("discord_webhook_url", "")
+        if not _hook or _hook.startswith("PASTE_"):
+            print("No Discord webhook configured (DISCORD_WEBHOOK_URL is empty): alerts would be recorded "
+                  "as sent without being delivered. Set the secret; not scanning.", file=sys.stderr)
+            sys.exit(1)
         deadline = time.monotonic() + args.loop_for_minutes * 60
+        PASS_STOP["at"] = deadline + PASS_OVERRUN_SECONDS
         last_full = None
         last_full_dur = prio_dur = 0.0
         PRIO_CLOCK["at"] = None
@@ -3375,6 +3565,14 @@ def main():
                 print(f"scan error: {e!r}", file=sys.stderr)
                 if fail_streak == 2:
                     _notify_scans_failing(cfg, e)
+                # A pass that raises at once (a bad top-level config value, a DB error) must not
+                # spin: with poll_interval_seconds 0 it re-ran back to back, tens of thousands of
+                # failed passes a second (GBs of 'scan error' lines per segment). Back off, longer
+                # each time in a row.
+                backoff = min(300.0, 15.0 * fail_streak)
+                if deadline - time.monotonic() <= backoff:
+                    break
+                time.sleep(backoff)
             if reroll or WEBHOOK_DEAD["status"]:
                 break
             # Sleep only until the next pass is due. No fixed tick: the request throttle already
@@ -3396,6 +3594,7 @@ def main():
             if not wake:
                 break             # nothing more fits in this window
             time.sleep(min(wake) - now)
+        PASS_STOP["at"] = None
         print(f"loop finished: {full_passes + prio_passes + task_scans} pass(es) ({full_passes} full, "
               f"{prio_passes} priority, {task_scans} sweep/band-only) over {args.loop_for_minutes:g} min.")
         if len(full_starts) > 1:
@@ -3421,6 +3620,8 @@ def main():
             scan_once(cfg, conn, notify_existing=args.notify_existing)
         except Exception as e:
             print(f"scan error: {e}", file=sys.stderr)
+            time.sleep(max(interval, 30))   # never retry a failing pass back to back
+            continue
         time.sleep(interval)
 
 

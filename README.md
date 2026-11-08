@@ -414,15 +414,35 @@ Add entries to the `watches` array in `config.json`:
 - **Grade-spelling tolerance** — `PSA-10`, `PSA10`, `BGS-9.5` (not just `PSA 10`)
   all classify correctly instead of falling through to "graded (other)". A PSA 10
   *comparison* on another grader's slab (`CGC 10 PRISTINE (PSA 10+)`, `BGS 9.5 (PSA 10
-  equivalent)`, a crossover pitch like `CGC 10 ... PSA 10 XOVER`, or a bare `(PSA 10)` next
-  to a BGS/CGC/TAG grade) is read as that slab's grade, so it can't fire a PSA 10 price
-  target.
+  equivalent)`, a crossover pitch like `CGC 10 ... PSA 10 XOVER`, or any `PSA 10` mention
+  next to a BGS/CGC/TAG grade, e.g. `BGS 9.5 ... PSA 10`) is read as that slab's grade, and a
+  title that calls the card **raw** is never a slab (`Raw - Could Grade PSA 10`), so neither
+  can fire a PSA 10 price target. A multi-variation listing's price **range** (`$0.99 to
+  $899.99`) is never compared with a target.
 - **Health-check debounce** — a single quiet pass where nothing matches no longer
   trips a false ⚠️ alert; the "0 matched" alarm only fires after several consecutive
   zero-match scans (`zero_match_alert_scans`, default 3). A true "0 scraped"
   (scraper blocked / layout change) still alerts immediately.
 - **Log rotation** — `monitor.log` is capped (~2 MB); once it exceeds that it's
   rotated to `monitor.log.1` on the next start, so it can't grow without bound.
+- **Outage-proof CI chain (2026-11-07 review)** — a failed segment-1 persist (a GitHub git
+  outage) no longer skips segment 2 and the requeue: seen.db stays on the runner and segment
+  2's persist commits it; `persist.sh` retries ~8 min, first stopping any orphaned monitor
+  process and letting SQLite roll back a half-written transaction. A pass that raises at once
+  backs off (15 s, 30 s, ... up to 5 min) instead of spinning; a pass still running 10 min past
+  the segment's end starts no further watch (the step's 120-min timeout would fail the job);
+  an empty `DISCORD_WEBHOOK_URL` in CI exits 1 before scanning instead of quietly recording
+  every alert as sent. A Discord *read* timeout counts as delivered (re-sending made one
+  listing many identical pings). The watchdog stays quiet while monitor.yml is disabled
+  (the way to stop the monitor) and restarts a run that failed only at a non-scan step.
+- **Alert-state guards** — a full pass whose reference-defining search failed keeps the last
+  good asking reference (storing an empty one made sweeps ping a deal as plain "new" and the
+  next pass ping "below market" again); a new watch stays silent for its whole first pass
+  (sweep, band and own searches); each price band has its own first-run baseline keyed by
+  its rule, so a new or edited target never @mentions listings already under it; a sighting
+  in another currency can't re-arm a target; at most 3 under-target backlog pings per watch
+  per pass. `MATCHER_VERSION` is part of every watch's rules signature: bump it when a
+  matcher code change can newly match listings that are already up.
 - **Market-price cache** — a real recent-sold median is cached ~6h, but a failed or
   too-few-comps lookup (`None`) is *not* cached, so it's retried on the next scan
   instead of leaving the card without a market price for hours.

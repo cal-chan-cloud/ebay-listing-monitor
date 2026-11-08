@@ -112,6 +112,24 @@ check("'BGS 9.5 ... crossover to PSA 10' -> bgs9.5",
 check("a plain PSA 10 stays a PSA 10", m.classify_grade("Tyranitar V 155/163 Alt Art PSA 10 Gem Mint"), "psa10")
 check("'PSA 10 crossover' with no other grade stays a PSA 10",
       m.classify_grade("Tyranitar V 155/163 PSA 10 crossover"), "psa10")
+# 2026-11-07 matching review: every PSA-10 aside on another grader's slab, raw pitches, and the
+# real '$2,500 BGS 9.5 ... PSA 10' Mewtwo & Mew listing (it would have fired the < $1,500 target)
+for _t, _g in (("Pokemon BGS 9.5 Mewtwo & Mew GX #SM191 Tag Team Ton Promo 2019 PSA 10", "bgs9.5"),
+               ("Espeon & Deoxys GX BGS 9.5 Tag Team Power Collection #SM240 (PSA 10 Gem Mint)", "bgs9.5"),
+               ("Espeon & Deoxys GX SM240 Black Star Promo BGS 9.5 = PSA 10", "bgs9.5"),
+               ("Espeon & Deoxys GX SM240 Black Star Promo BGS 9.5 [PSA 10]", "bgs9.5"),
+               ("Mew ex 232/091 Paldean Fates SIR CGC 10 Pristine = PSA 10", "cgc10"),
+               ("Giratina V 186/196 Lost Origin Alt Art CGC 10 Gem Mint - PSA 10 Quality", "cgc10"),
+               ("Mew ex 232/091 Paldean Fates SIR Raw - Could Grade PSA 10", "ungraded"),
+               ("Mewtwo & Mew GX SM191 Promo Raw PSA 10 Centering", "ungraded"),
+               ("Rayquaza VMAX 218/203 Alt Art Evolving Skies Raw NM - PSA 10 Quality", "ungraded"),
+               ("Mew ex 232/091 Great Candidate for PSA 10", "ungraded"),
+               ("Mew ex 232/091 Paldean Fates should grade a PSA 10", "ungraded"),
+               ("Mew ex 232/091 Paldean Fates SIR (No PSA 10)", "ungraded"),
+               ("Mew ex 232/091 Paldean Fates SIR PSA 10 Gem Mint", "psa10"),
+               ("Mew ex PSA 10 - Ready To Ship", "psa10"),
+               ("Charizard CGC 10 Pristine not PSA 10", "cgc10")):
+    check(f"grade: {_t[:60]}", m.classify_grade(_t), _g)
 check("'PSA 10 + free toploader' stays a PSA 10", m.classify_grade("Giratina V 186/196 PSA 10 + Free Toploader"), "psa10")
 check("number-less 'CGC Pristine' -> cgc10",
       m.classify_grade("Pokemon Mew ex 232/091 SV Paldean Fates SIR Full Art Holo CGC Pristine 2024 EN"), "cgc10")
@@ -379,6 +397,18 @@ except Exception:
     pass
 check("a 404 'Unknown Webhook' marks the webhook dead", m.WEBHOOK_DEAD["status"], 404)
 m.WEBHOOK_DEAD["status"] = None
+# 2026-11-07 review: a READ timeout means the POST went out and Discord usually posted it;
+# re-sending made one listing many identical pings (4 per call, then again every pass).
+_n4 = {"i": 0}
+def _fp_slow(url, **k):
+    _n4["i"] += 1
+    raise m.requests.exceptions.ReadTimeout("read timed out")
+m.requests.post = _fp_slow
+try:
+    m._post_webhook("http://wh", {"x": 1}); _rt_raised = False
+except Exception:
+    _rt_raised = True
+ok("a read timeout is counted as delivered: one POST, no re-send, no error", _n4["i"] == 1 and not _rt_raised)
 m.requests.post, m.time.sleep = _saved_post, _saved_sleep
 
 # --------------------------------------------------------------------------
@@ -456,6 +486,15 @@ ok("health down after sustained 0 matched", any("0 matched" in txt for _, txt in
 health.clear()
 run([L("1", "$200.00", 200.0)])                       # match returns -> streak resets, recovered
 ok("recovered after match returns", any("recover" in t.lower() for t, _ in health))
+# 2026-11-07 review: a 0-scraped DOWN, then a pass that scraped but matched NOTHING, announced
+# "recovered" (its streak restarted at 1) and flapped back DOWN two passes later.
+health.clear()
+run([])                                               # 0 scraped -> down
+run([L("z", "$10.00", 10.0, "Unrelated Card XYZ")])   # scraped, 0 matched
+ok("a 0-matched pass after a 0-scraped DOWN is not a recovery", not any("recover" in t.lower() for t, _ in health)
+   and m.meta_get(conn, "health") == "down")
+run([L("1", "$200.00", 200.0)])
+ok("...the next pass that matches is", any("recover" in t.lower() for t, _ in health))
 
 stale = (m.datetime.now(m.timezone.utc) - m.timedelta(days=40)).date().isoformat()
 conn.execute("INSERT OR REPLACE INTO seen(watch,item_id,grade,first_seen,price,price_str,last_seen) "
@@ -1324,6 +1363,25 @@ def _scan_spec(cfg, c, spec, **kw):
     _X.clear(); _N.clear()
     m.scan_once(cfg, c, **kw)
     return [(x[0], x[1]) for x in _X]
+print("== a pass whose reference queries 403 keeps the last good asking reference (2026-11-07) ==")
+_sv_aar = m.active_asking_reference
+m.active_asking_reference = lambda pool, w, wanted, **k: {"ungraded": 100.0} if pool else {}
+_rc = _db("askref403")
+_rw = {"name": "AR", "queries": ["pin", "t1", "t2"], "rotate_queries": True, "require": ["op05-119"],
+       "grades": ["ungraded"]}
+_rcfg = _cfg(_rw, max_queries_per_watch=2)
+_scan_spec(_rcfg, _rc, {"pin": [L("p1", "$100.00", 100.0)], "t1": [L("t1", "$120.00", 120.0)],
+                        "t2": [L("t2", "$130.00", 130.0)]})
+ok("a full pass stores its asking reference for sweeps", json.loads(m.meta_get(_rc, "ask_ref:AR")) == {"ungraded": 100.0})
+_scan_spec(_rcfg, _rc, {"pin": None, "t1": [L("t1", "$120.00", 120.0)], "t2": [L("t2", "$130.00", 130.0)]})
+ok("...a pass whose pinned (reference) query was blocked keeps it (it used to store {}, so sweeps "
+   "pinged a deal as plain 'new' and the next pass pinged 'below market' again)",
+   json.loads(m.meta_get(_rc, "ask_ref:AR")) == {"ungraded": 100.0})
+_scan_spec(_rcfg, _rc, {"pin": [], "t1": [], "t2": []})
+ok("...but a real, empty reference page does clear it (nothing comparable is listed)",
+   json.loads(m.meta_get(_rc, "ask_ref:AR")) == {})
+m.active_asking_reference = _sv_aar
+
 _ec = _db("edit403")
 _ew = {"name": "E", "queries": ["qa", "qb"], "require": ["op05-119"], "grades": ["ungraded"], "min_price": 100}
 _ecfg = _cfg(_ew)
@@ -1607,8 +1665,15 @@ _tscan(_bcfg, _bc, {"BW": [_PL("hi1", 3000)]})
 _SW_PAGES["mew ex 232/091 psa 10"] = [_PL("old_under", 2500), _PL("raw_in_band", 1500, grade_prefix=""),
                                       _PL("hi1", 3000), _PL("hi2", 2800)]
 m.TASK_CLOCK.clear()
-check("a band pings an under-target PSA 10 the monitor never saw, with the @mention",
-      _tscan(_bcfg, _bc, full_scan=False, tasks_only=True), [("new", "old_under", "U")])
+# 2026-11-07 review: a NEW (or raised/added) target's band @mentioned every never-seen listing
+# already under it. Its first run is now a silent baseline, like any never-run query.
+check("a new target's band seeds what already sits under it on its first run (no @mention flood)",
+      _tscan(_bcfg, _bc, full_scan=False, tasks_only=True), [])
+_SW_PAGES["mew ex 232/091 psa 10"] = [_PL("old_under", 2500), _PL("raw_in_band", 1500, grade_prefix=""),
+                                      _PL("new_under", 2450), _PL("hi1", 3000), _PL("hi2", 2800)]
+m.TASK_CLOCK.clear()
+check("...after which it pings an under-target PSA 10 the monitor never saw, with the @mention",
+      _tscan(_bcfg, _bc, full_scan=False, tasks_only=True), [("new", "new_under", "U")])
 ok("...a raw copy inside the band is not this rule's business (no 'new' ping)",
    _bc.execute("SELECT COUNT(*) FROM seen WHERE item_id='raw_in_band'").fetchone()[0] == 0)
 m.TASK_CLOCK.clear()
@@ -1619,10 +1684,65 @@ check("a known listing cut under target pings once (price_alert)", _tscan(_bcfg,
       [("price_alert", "hi1", "U")])
 check("every ping is logged with its kind and source (own search / sweep / band)",
       [tuple(r) for r in _bc.execute("SELECT item_id, kind, via FROM pings ORDER BY rowid")],
-      [("old_under", "target_new", "band"), ("hi1", "target_cut", "band")])
+      [("new_under", "target_new", "band"), ("hi1", "target_cut", "band")])
 check("...and the sweep pings, with eBay's listing time when the page shows one",
       [tuple(r) for r in _tc.execute("SELECT item_id, kind, via FROM pings ORDER BY rowid")][:2],
       [("new1", "new", "sweep"), ("new2", "new", "sweep")])
+
+print("== 2026-11-07 state review: first passes, bands, currencies, backlog cap ==")
+_nw = {"name": "NW", "queries": ["own"], "require": ["232/091"], "grades": ["ungraded", "psa10"], "language": "any",
+       "min_price": 300, "price_band_query": "nw band",
+       "price_alerts": [{"grade": "psa10", "below": 2300, "mention": "U"}]}
+_nwcfg = _cfg(_nw, sweeps=[{"query": "nw sweep", "watches": ["NW"]}], sweep_interval_seconds=60,
+              price_band_interval_seconds=180)
+_nwc = _db("newwatch")
+m.TASK_CLOCK.clear()
+_SW_PAGES["nw sweep"] = [_PL("sw1", 2600)]
+_SW_PAGES["nw band"] = [_PL("u1", 1900), _PL("u2", 2000), _PL("u3", 2150)]
+ok("a new price-target watch's whole first pass is silent: its sweep stored a row first, then the "
+   "band used to @mention every listing already under target", _tscan(_nwcfg, _nwc, {"NW": [_PL("own1", 2100)]}) == [])
+_SW_PAGES["nw band"] = [_PL("u1", 1900), _PL("u2", 2000), _PL("u3", 2150), _PL("u4", 2200)]
+m.TASK_CLOCK.clear()
+check("...and a listing that turns up under target afterwards pings with the @mention",
+      _tscan(_nwcfg, _nwc, {"NW": [_PL("own1", 2100)]}), [("new", "u4", "U")])
+
+_mg = _db("bandmig")
+_mgw = {"name": "MG", "queries": ["own"], "require": ["232/091"], "grades": ["psa10"], "language": "any",
+        "min_price": 300, "price_band_query": "mg band",
+        "price_alerts": [{"grade": "psa10", "below": 2300, "mention": "U"}]}
+_mgcfg = _cfg(_mgw, price_band_interval_seconds=180)
+m.meta_set(_mg, "seeded:MG", "1")
+m.meta_set(_mg, "pa_sig:MG", m.price_alert_sig(m.parse_price_alerts(_mgw)))
+m.meta_set(_mg, "qdone:MG", json.dumps(["own"]))
+_SW_PAGES["mg band"] = [_PL("m1", 2000)]
+m.TASK_CLOCK.clear()
+check("upgrading: the band of a rule that was already running is credited at once (it keeps pinging)",
+      [x for x in _tscan(_mgcfg, _mg, {"MG": []}) if x[1] == "m1"], [("new", "m1", "U")])
+
+_cu = _db("curr")
+_cuw = {"name": "CU", "queries": ["own"], "require": ["232/091"], "grades": ["psa10"], "language": "any",
+        "price_alerts": [{"grade": "psa10", "below": 2300, "mention": "U"}]}
+_cucfg = _cfg(_cuw)
+_scan(_cucfg, _cu, {"CU": [_PL("seed", 3000)]})                                   # silent first run
+_r1 = _scan(_cucfg, _cu, {"CU": [_PL("seed", 3000), _PL("c1", 2200)]})           # under target: ping
+_scan(_cucfg, _cu, {"CU": [_PL("seed", 3000), _PL("c1", 3036, currency="CAD")]})  # one CAD rendering
+_r3 = _scan(_cucfg, _cu, {"CU": [_PL("seed", 3000), _PL("c1", 2200)]})           # USD again, same price
+ok("a sighting priced in another currency doesn't re-arm a target that already pinged (no 2nd @mention)",
+   [x[1] for x in _r1] == ["c1"] and _r3 == [])
+
+_bk = _db("backlogcap")
+_bkw = {"name": "BK", "queries": ["own"], "require": ["232/091"], "grades": ["psa10"], "language": "any",
+        "min_price": 2000, "price_alerts": [{"grade": "psa10", "below": 2300, "mention": "U"}]}
+_bkcfg = _cfg(_bkw, sweeps=[{"query": "bk sweep", "watches": ["BK"]}], sweep_interval_seconds=60)
+m.TASK_CLOCK.clear()
+_SW_PAGES["bk sweep"] = [_PL("b0", 2500)]
+_tscan(_bkcfg, _bk, {"BK": [_PL("b0", 2500)]})                                   # silent first run
+_bkw["min_price"] = 1000                                # a rules edit: cheaper listings newly match
+_SW_PAGES["bk sweep"] = [_PL("b0", 2500)] + [_PL(f"s{i}", 1500 + i) for i in range(4)]
+m.TASK_CLOCK.clear()
+_r = _tscan(_bkcfg, _bk, {"BK": [_PL("b0", 2500)] + [_PL(f"o{i}", 1600 + i) for i in range(4)]})
+check("a rules edit pings at most 3 under-target backlog listings per PASS (sweep + own query together)",
+      len([x for x in _r if x[2] == "U"]), 3)
 # --- architecture review: quiet sweeps, freshness gate, bands, flood breaker, full-pass share
 _qc3 = _db("quietsweep")
 _qw3 = {"name": "Q3", "queries": ["own"], "require": ["h29"], "grades": ["ungraded"]}
@@ -1903,8 +2023,9 @@ ok("a long in-progress run is not stale", _wdrun([
 ok("a run that waited in the queue then ran is judged by when it ENDED (no false stale)", _wdrun([
     {"createdAt": _ago(7), "startedAt": _ago(7), "updatedAt": _ago(0.1), "status": "completed",
      "conclusion": "success"}]) == "")
+_TO_H = _wd.TIMEOUT_MINUTES / 60.0      # the job timeout, in hours (300 min since 2026-11-07)
 ok("a job that hit timeout-minutes (reported 'cancelled') is flagged as hung", "job timeout" in _wdrun([
-    {"createdAt": _ago(5), "startedAt": _ago(5), "updatedAt": _ago(0.8), "status": "completed",
+    {"createdAt": _ago(_TO_H + 1.0), "startedAt": _ago(_TO_H + 1.0), "updatedAt": _ago(0.8), "status": "completed",
      "conclusion": "cancelled"}]))
 ok("healthy -> no alert", _wdrun([
     {"createdAt": _ago(0.3), "startedAt": _ago(0.3), "status": "in_progress", "conclusion": ""},
@@ -1914,10 +2035,10 @@ ok("a long-QUEUED run cancelled by hand is not called a timeout", "job timeout" 
     {"databaseId": 7, "createdAt": _ago(5), "startedAt": _ago(5), "updatedAt": _ago(0.8), "status": "completed",
      "conclusion": "cancelled"},
     {"createdAt": _ago(6), "startedAt": _ago(6), "updatedAt": _ago(4.5), "status": "completed", "conclusion": "success"}]))
-_wd.job_minutes = lambda rid: 251.0
-ok("...while one whose job really ran 250 min is", "job timeout" in _wdrun([
-    {"databaseId": 7, "createdAt": _ago(5), "startedAt": _ago(5), "updatedAt": _ago(0.8), "status": "completed",
-     "conclusion": "cancelled"}]))
+_wd.job_minutes = lambda rid: _wd.TIMEOUT_MINUTES + 1.0
+ok("...while one whose job really ran the whole timeout is", "job timeout" in _wdrun([
+    {"databaseId": 7, "createdAt": _ago(_TO_H + 1.0), "startedAt": _ago(_TO_H + 1.0), "updatedAt": _ago(0.8),
+     "status": "completed", "conclusion": "cancelled"}]))
 _wd.discord = lambda msg, mention=True: False          # webhook deleted / Discord down
 try:
     _wdrun([{"createdAt": _ago(1.0), "startedAt": _ago(1.0), "updatedAt": _ago(0.5), "status": "completed",
@@ -1990,6 +2111,24 @@ except SystemExit as e:
 os.environ.pop("WATCHDOG_TEST", None)
 ok("a manual test_alert run only sends a test message (no @mention) and exits 0",
    _wd_code == 0 and "Test message" in " ".join(_wd_msgs) and _wd_mention == [False])
+# 2026-11-07 review: disabling monitor.yml (the documented way to STOP the monitor) kept the
+# watchdog alerting with @mentions every few hours; a git outage at the persist was a "crash".
+_sv_wfs = _wd.workflow_state
+_wd.workflow_state = lambda: "disabled_manually"
+ok("a disabled monitor workflow (stopped on purpose) is neither alerted nor restarted", _wdrun([
+    {"databaseId": 9, "createdAt": _ago(30), "startedAt": _ago(30), "updatedAt": _ago(29),
+     "status": "completed", "conclusion": "success"}]) == "" and _wd_disp == [])
+_wd.workflow_state = lambda: "disabled_inactivity"
+ok("...but GitHub's own inactivity disable is reported", "inactivity" in _wdrun([
+    {"createdAt": _ago(0.3), "startedAt": _ago(0.3), "status": "in_progress", "conclusion": ""}]))
+_wd.workflow_state = lambda: "active"
+_wd.failed_steps = lambda rid: ["Persist seen listings (segment 1)"]
+_r = _wdrun([{"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "updatedAt": _ago(0.5),
+              "status": "completed", "conclusion": "failure"}])
+ok("a run that failed only at its persist step is restarted at once (not 'crashing', no 5 h wait)",
+   _wd_disp == [1] and "crashing" not in _r and "may not have been saved" in _r)
+_wd.failed_steps = lambda rid: None
+_wd.workflow_state = _sv_wfs
 
 # ==========================================================================
 # Runner geography (HEALTH DOWN from a mexicocentral runner) + critic fixes
@@ -2098,7 +2237,8 @@ m.time.monotonic = lambda: _clock[0]
 m.time.sleep = lambda s: _clock.__setitem__(0, _clock[0] + s)
 m.enable_file_logging = lambda: None
 m.validate_config = lambda cfg: []
-m.load_config = lambda: {"poll_interval_seconds": 300, "priority_interval_seconds": 120, "watches": [
+m.load_config = lambda: {"poll_interval_seconds": 300, "priority_interval_seconds": 120,
+                         "discord_webhook_url": "https://discord.test/wh", "watches": [
     {"name": "P", "require": ["x"], "grades": ["ungraded"], "priority": True}]}
 _rdb = os.path.join(_TMPD, "ebay_test_reroll.db")
 if os.path.exists(_rdb):
@@ -2179,6 +2319,38 @@ except SystemExit as e:
     _dead_code = e.code
 check("Discord rejecting the webhook stops the loop with exit 1", _dead_code, 1)
 m.WEBHOOK_DEAD["status"] = None
+# 2026-11-07 review: with poll_interval_seconds 0 a pass that raises AT ONCE re-ran back to back
+# (tens of thousands of failed passes a second); it must back off.
+m.load_config = lambda: {"poll_interval_seconds": 0, "discord_webhook_url": "https://discord.test/wh",
+                         "watches": [{"name": "R", "require": ["x"], "grades": ["ungraded"]}]}
+_fast_fails = [0]
+def _instant_crash(cfg, conn, **k):        # raises without the clock moving
+    _fast_fails[0] += 1
+    if _fast_fails[0] > 1000:
+        raise SystemExit(99)               # the old tight loop: stop the test instead of hanging
+    raise ValueError("could not convert string to float: '5%'")
+m.scan_once = _instant_crash
+try:
+    m.main()
+    _ff_code = 0
+except SystemExit as e:
+    _ff_code = e.code
+ok("an instantly-failing pass backs off (a handful of tries in 10 min, not a spin)",
+   _ff_code == 1 and _fast_fails[0] <= 12)
+# no webhook in CI: every alert would be recorded as sent and nobody told -> refuse to scan
+_sv_env_hook = os.environ.pop("DISCORD_WEBHOOK_URL", None)
+m.load_config = lambda: {"poll_interval_seconds": 60, "discord_webhook_url": "",
+                         "watches": [{"name": "R", "require": ["x"], "grades": ["ungraded"]}]}
+_nohook_scans = []
+m.scan_once = lambda cfg, conn, **k: _nohook_scans.append(1)
+try:
+    m.main()
+    _nh_code = 0
+except SystemExit as e:
+    _nh_code = e.code
+if _sv_env_hook is not None:
+    os.environ["DISCORD_WEBHOOK_URL"] = _sv_env_hook
+check("no webhook configured in CI -> exit 1 before scanning", (_nh_code, len(_nohook_scans)), (1, 0))
 for _k, _v in _sv_crash.items():
     setattr(m, _k, _v)
 m.time.monotonic, sys.argv, m.time.sleep = _sv_mono_c, _sv_argv_c, _sv_sleep_c
@@ -2193,7 +2365,8 @@ m.time.sleep = lambda s: _tclock.__setitem__(0, _tclock[0] + s)
 m.enable_file_logging = lambda: None
 m.validate_config = lambda cfg: []
 m.egress_country = lambda: "US"
-_tl_cfg = {"poll_interval_seconds": 300, "sweep_interval_seconds": 60, "watches": [
+_tl_cfg = {"poll_interval_seconds": 300, "sweep_interval_seconds": 60,
+           "discord_webhook_url": "https://discord.test/wh", "watches": [
     {"name": "A", "require": ["x"], "grades": ["ungraded"]}],
     "sweeps": [{"query": "x (a,b)", "watches": ["A"]}]}
 m.load_config = lambda: json.loads(json.dumps(_tl_cfg))
@@ -2229,7 +2402,8 @@ m.time.sleep = _sl
 m.enable_file_logging = lambda: None
 m.validate_config = lambda cfg: []
 m.egress_country = lambda: "US"
-m.load_config = lambda: {"poll_interval_seconds": 30, "priority_interval_seconds": 60, "watches": [
+m.load_config = lambda: {"poll_interval_seconds": 30, "priority_interval_seconds": 60,
+                         "discord_webhook_url": "https://discord.test/wh", "watches": [
     {"name": "P", "require": ["x"], "grades": ["ungraded"], "priority": True},
     {"name": "R", "require": ["x"], "grades": ["ungraded"]}]}
 def _fake_scan2(cfg, conn, **k):
@@ -2260,6 +2434,16 @@ _scan2(_cfg2(_nw), _nc, {"N": [L("n1", "$50.00", 50.0)]})
 ok("old 'paused' notice is corrected once", [t for t, _ in _N2 if "Sold comps" in t] == ["ℹ️ Sold comps unavailable — deals use asking prices"])
 _scan2(_cfg2(_nw), _nc, {"N": [L("n1", "$50.00", 50.0)]})
 ok("...and not repeated", not any("Sold comps" in t for t, _ in _N2))
+# 2026-11-07 review: a cooldown that merely LAPSED (no sold fetch succeeded) was announced as
+# "readable again", and the next pass re-sent "unavailable".
+m.meta_set(_nc, "market_circuit", json.dumps({"fails": 3, "until": (m.datetime.now(m.timezone.utc)
+                                                                     - m.timedelta(minutes=1)).isoformat()}))
+_scan2(_cfg2(_nw), _nc, {"N": [L("n1", "$50.00", 50.0)]})
+ok("a lapsed sold cooldown with no successful fetch is not announced as recovered",
+   not any("readable again" in t for t, _ in _N2))
+m.meta_set(_nc, "market_circuit", json.dumps({"fails": 0, "until": None}))   # a sold fetch worked
+_scan2(_cfg2(_nw), _nc, {"N": [L("n1", "$50.00", 50.0)]})
+ok("...a real successful fetch is", any("readable again" in t for t, _ in _N2))
 
 for _k, _v in _sv2.items():
     setattr(m, _k, _v)
@@ -2284,6 +2468,51 @@ ok("'plus hard case' is not a plush", m.matches_filters(
     "Rayquaza V Alt Art 194/203 Evolving Skies NM - penny sleeve plus hard case", ["rayquaza", "194/203"], []))
 ok("a plush toy is excluded", not m.matches_filters("Mew ex 232/091 Plush toy", ["232/091"], []))
 ok("a plushie is excluded", not m.matches_filters("Mew 232/091 plushie", ["232/091"], []))
+
+print("== 2026-11-07 matching review ==")
+_vmax = [["rayquaza", "vmax", "218/203"]]
+ok("'... Not the VMAX 218/203' on a Rayquaza V is not the VMAX", not m.matches_filters(
+    "Rayquaza V Alt Art 194/203 Evolving Skies PSA 10 - Not the VMAX 218/203", [], [], _vmax))
+ok("...while the V's own number still matches the V", m.matches_filters(
+    "Rayquaza V Alt Art 194/203 Evolving Skies PSA 10 - Not the VMAX 218/203", [], [], [["rayquaza", "194/203"]]))
+ok("'(Not SM240 Promo)' is not the SM240", not m.matches_filters(
+    "Espeon & Deoxys GX 72/236 Unified Minds PSA 10 (Not SM240 Promo)", [], [], [["espeon", "sm240"]]))
+ok("'VS 091/141' is the Pokemon VS set, not 'versus' (30 of 30 real titles)", m.matches_filters(
+    "Pokemon Karen's Umbreon Holo Vs 091/141 1st Edition Japanese PSA 10", ["091/141"], []))
+ok("'English NOT Japanese ... 232/091' keeps its number", m.matches_filters(
+    "English NOT Japanese Mew ex 232/091 Paldean Fates SIR", ["232/091"], []))
+ok("'English NOT German' isn't dropped by a 'german' exclude", m.matches_filters(
+    "Espeon 1/75 Neo Discovery Holo Rare English NOT German", ["espeon", "1/75"], ["german"]))
+ok("...a German print still is", not m.matches_filters("Espeon 1/75 Neo Discovery Holo German", ["espeon", "1/75"], ["german"]))
+ok("a bare-string 'require' is ONE clause, not its letters", not m.matches_filters(
+    "Pikachu 160/159 Crown Zenith 2010 promo", "op01-001", []) and m.matches_filters("Luffy OP01-001 Leader", "op01-001", []))
+ok("accents fold: 'Française' meets a 'francais' exclude", not m.matches_filters(
+    "Mew ex 232/091 Destinées de Paldea PSA 10 Version Française", ["232/091"], ["francais"]))
+check("'NOT ENGLISH' is a foreign print", m.title_language("Rayquaza VMAX 218/203 Alt Art PSA 10 *NOT ENGLISH*"), "foreign")
+check("'Non-English Print' too", m.title_language("Mew ex 232/091 Paldean Fates SIR PSA 10 Non-English Print"), "foreign")
+check("'Version Française' is an EU print", m.title_language("Mew ex 232/091 PSA 10 Version Française"), "eu")
+check("'English NOT Japanese' stays English", m.title_language("Mew ex 232/091 English NOT Japanese"), "english")
+ok("a fake that says so is excluded everywhere (replica / fan made / custom slab)", not any(
+    m.matches_filters(t, ["105/086"], []) for t in ("Oshawott 105/086 IR PSA 10 Replica Slab",
+                                                     "Oshawott 105/086 IR Fan Made PSA 10", "Oshawott 105/086 Custom Slab")))
+ok("...but 'No Customs Fees' is not a fake", m.matches_filters("Oshawott 105/086 IR NM No Customs Fees", ["105/086"], []))
+ok("a price RANGE ('$0.99 to $899.99') is never a target price", m.is_price_range("$0.99 to $899.99")
+   and not m.is_price_range("$899.99"))
+check("parse_price: a comma before the first digit doesn't raise", m.parse_price("See price, $12.99")[1], 12.99)
+_feb = m._parse_listed_at("Feb-29 10:00", now=m.datetime(2025, 3, 1, tzinfo=m.timezone.utc))
+ok("'Feb-29' seen in a non-leap year is last leap year's (not None)", _feb is not None and _feb.year == 2024)
+_tw = {"name": "TY", "queries": ["q"], "require": ["x"], "grades": ["psa10"], "min_price": "$300",
+       "price_alerts": [{"grade": "psa10", "below": 500, "mention": "1"}]}
+ok("a typo'd min_price ('$300') skips that watch's price band instead of crashing every scan",
+   [t["kind"] for t in m.scan_tasks({"price_band_interval_seconds": 600, "watches": [_tw]})] == [])
+_vs = m.validate_config({"watches": [{"name": "S", "queries": ["q"], "require": "op01-001", "grades": ["ungraded"]},
+                                     {"name": "S2", "queries": ["q"], "match_any": ["lugia", "neo genesis"],
+                                      "grades": ["ungraded"], "price_band_floor": "1,000"}]})
+ok("validate_config flags a string 'require', string signatures and a non-numeric price_band_floor",
+   any("'require' is a string" in w for w in _vs) and any("'match_any' must be a list" in w for w in _vs)
+   and any("price_band_floor" in w for w in _vs))
+ok("MATCHER_VERSION is part of every watch's rules signature (a matcher code change re-baselines)",
+   bool(m.MATCHER_VERSION))
 
 _sv3 = {k: getattr(m, k) for k in ("fetch_all", "fetch_listings", "get_market_prices", "active_asking_reference",
                                     "send_discord", "send_simple_discord", "get_session")}

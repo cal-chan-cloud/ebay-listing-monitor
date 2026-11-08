@@ -31,9 +31,13 @@ import urllib.request
 from datetime import datetime, timezone
 
 STALE_HOURS = 5.0     # alert when no monitor run has been ACTIVE for this long
-TIMEOUT_MINUTES = 250  # monitor.yml timeout-minutes: a run cancelled after this long hit it
+TIMEOUT_MINUTES = 300  # monitor.yml timeout-minutes: a run cancelled after this long hit it
 RESTART_AFTER_MIN = 15  # a finished run queues its successor within ~1 min; 15 min idle = dropped
 REQUEUE_STEP = "Queue the next run"
+# Steps that run no scan: when only these failed it was GitHub (git, the API, setup), not the
+# monitor's code, so the chain is restarted at once instead of waiting STALE_HOURS like a crash.
+INFRA_STEPS = ("Set up job", "Checkout latest main", "Set up Python", "Install dependencies",
+               "Persist seen listings", REQUEUE_STEP, "Post ", "Complete job")
 # Discord's Cloudflare front rejects urllib's default "Python-urllib/3.x" agent with HTTP 403
 # ("error code: 1010") before the webhook is even looked up, so every watchdog alert failed
 # (found 2026-11-05). Any named agent goes through.
@@ -139,21 +143,35 @@ def failed_steps(run_id):
 
 
 def dispatch_monitor():
-    """Queue a monitor run; True if GitHub accepted it. Retries through a brief API outage."""
+    """Queue a monitor run; True if GitHub accepted it. Retries through a brief API outage,
+    bounded (3 x 30 s + 2 x 15 s) so the Discord alert still goes out inside the job timeout."""
     if not REPO:
         print("watchdog: GITHUB_REPOSITORY unset; not dispatching.", file=sys.stderr)
         return False
-    for attempt in range(4):
+    for attempt in range(3):
         try:
             subprocess.run(["gh", "workflow", "run", "monitor.yml", "--ref", "main", "-R", REPO],
-                           check=True, timeout=60)
+                           check=True, timeout=30)
             print("watchdog: queued a new monitor run.")
             return True
         except Exception as e:
             print(f"watchdog: dispatch attempt {attempt + 1} failed: {e}", file=sys.stderr)
-            if attempt < 3:
-                time.sleep(30)
+            if attempt < 2:
+                time.sleep(15)
     return False
+
+
+def workflow_state():
+    """monitor.yml's state ('active', 'disabled_manually', 'disabled_inactivity', ...) or None."""
+    if not REPO:
+        return None
+    try:
+        return subprocess.check_output(
+            ["gh", "api", f"repos/{REPO}/actions/workflows/monitor.yml", "--jq", ".state"],
+            text=True, timeout=30).strip() or None
+    except Exception as e:
+        print(f"watchdog: could not read the workflow state: {e}", file=sys.stderr)
+        return None
 
 
 def seen_db_commit_age_hours():
@@ -183,6 +201,16 @@ def main():
     now = datetime.now(timezone.utc)
     problems = []
     restart = None          # why the requeue chain looks dropped (-> dispatch a new run)
+
+    # Disabling monitor.yml is how the owner STOPS the monitor: don't alert (or try to restart
+    # it) every few hours afterwards. GitHub's own inactivity disable is a different story.
+    state = workflow_state()
+    if state == "disabled_manually":
+        print("watchdog: monitor.yml is disabled (stopped on purpose); nothing to check.")
+        return
+    if state == "disabled_inactivity":
+        problems.append("GitHub disabled the monitor workflow for inactivity. Re-enable it: Actions → "
+                        "eBay Listing Monitor → Enable workflow.")
 
     runs = recent_runs()
     if runs:
@@ -230,6 +258,12 @@ def main():
                 restart = (f"The last monitor run scanned normally but GitHub refused to queue the next one "
                            f"(its \"{REQUEUE_STEP}\" step failed), so the monitor stopped at "
                            f"{_t(newest, 'updatedAt'):%Y-%m-%d %H:%M} UTC.")
+            elif steps and all(st.startswith(INFRA_STEPS) for st in steps):
+                restart = (f"The last monitor run failed outside the scan (failed step: {', '.join(steps)}), "
+                           "most likely a GitHub outage rather than a crash"
+                           + ("; its seen listings may not have been saved, so a few alerts may repeat"
+                              if any(st.startswith("Persist") for st in steps) else "")
+                           + f". The monitor stopped at {_t(newest, 'updatedAt'):%Y-%m-%d %H:%M} UTC.")
             else:
                 crashed = True
                 problems.append("The most recent completed monitor run FAILED — the job is crashing"
