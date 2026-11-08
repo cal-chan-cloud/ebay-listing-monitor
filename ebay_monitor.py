@@ -337,11 +337,16 @@ _PSA_CMP = re.compile(
     r"|\bPSA" + _SEP + r"10\s+equiv\w*\b"
     r"|\b(?:like|equivalent\s+to)\s+(?:an?\s+)?PSA" + _SEP + r"10\b",
     re.IGNORECASE)
-# ...and a bare "(PSA 10)" next to ANOTHER grader's grade is the same claim about that slab
-# ("Espeon & Deoxys GX BGS 9.5 Tag Team Power Collection #SM240 (Psa 10)", a $3,000 BGS 9.5 seen
-# 2026-11-06; "CGC 10 (=PSA 10)"): read as a PSA 10 it would fire a false "PSA 10 under target"
-# @mention. Without another grade in the title, "(PSA 10)" stays a PSA 10 (above).
-_PSA10_PAREN = re.compile(r"\(\s*[=~]?\s*PSA" + _SEP + _PSA_LABEL + r"10\s*\)", re.IGNORECASE)
+# ...and a bare "(PSA 10)" or a crossover pitch next to ANOTHER grader's grade is the same claim
+# about that slab ("Espeon & Deoxys GX BGS 9.5 Tag Team Power Collection #SM240 (Psa 10)", a $3,000
+# BGS 9.5 seen 2026-11-06; "CGC 10 Tyranitar V 155/163 ... CGC 10 PSA 10 XOVER", CGC 10s at
+# $550-595 seen 2026-11-07; "CGC 10 (=PSA 10)"): read as a PSA 10 it would fire a false "PSA 10
+# under target" @mention. Without another grade in the title, "(PSA 10)" stays a PSA 10 (above).
+_PSA10_PAREN = re.compile(
+    r"\(\s*[=~]?\s*PSA" + _SEP + _PSA_LABEL + r"10\s*\)"
+    r"|\bPSA" + _SEP + _PSA_LABEL + r"10\s*(?:x[\s-]?over|cross[\s-]?over)\w*"
+    r"|\b(?:x[\s-]?over|cross[\s-]?over)\w*(?:\s+(?:to|for|at|as))?\s+(?:an?\s+)?PSA" + _SEP + _PSA_LABEL + r"10\b",
+    re.IGNORECASE)
 _OTHER_GRADE = re.compile(
     r"\b(?:BGS|BECKETT|CGC|SGC|ACE|TAG|ARS|GMA|HGA|KSA|AGS|OCE)" + _SEP
     + r"(?:(?:GEM|MINT|MT|GM|PRISTINE|PERFECT|BLACK|GOLD|LABEL)" + _SEP + r")*(?:10|\d(?:\.\d)?)\b"
@@ -1699,7 +1704,9 @@ def send_discord(webhook_url, watch_name, listing, grade,
     if target:
         color = 0xE74C3C  # red — a watched price target was hit
         under = (alert_threshold - cur_low) if cur_low is not None else None
-        under_bit = (f"${under:,.0f} ({under / alert_threshold * 100:.1f}%) under your {_fmt_price(alert_threshold)} target"
+        at_target = under is not None and abs(under) < 0.005     # an at_or_below rule's exact price
+        under_bit = (f"at your {_fmt_price(alert_threshold)} target" if at_target
+                     else f"${under:,.0f} ({under / alert_threshold * 100:.1f}%) under your {_fmt_price(alert_threshold)} target"
                      if under is not None else f"below your {_fmt_price(alert_threshold)} target")
         how = (f"cut from {old_price_str}" if (event == "price_alert" and old_price_str)
                else "older listing, newly found" if stale
@@ -1741,7 +1748,9 @@ def send_discord(webhook_url, watch_name, listing, grade,
                      else f"🔥 **below {ref_word}**\n")
     target_line = ""
     if target:
-        target_line = (f"🎯 **${alert_threshold - cur_low:,.0f} under your {_fmt_price(alert_threshold)} target**\n"
+        target_line = (f"🎯 **at your {_fmt_price(alert_threshold)} target**\n"
+                       if (cur_low is not None and abs(alert_threshold - cur_low) < 0.005)
+                       else f"🎯 **${alert_threshold - cur_low:,.0f} under your {_fmt_price(alert_threshold)} target**\n"
                        if cur_low is not None else f"🎯 **below your {_fmt_price(alert_threshold)} target**\n")
     # Way under the reference is more often a fake, a mislabel or a scam than a steal.
     warn_line = ("⚠️ **Unusually cheap** ({:.0f}% of {}) — check the photos, title and seller first\n"
@@ -1829,36 +1838,44 @@ def parse_price_alerts(watch):
     Each config rule is {"grade": <bucket or omitted for any>, "below": <price>,
     "mention": <Discord USER id, optional>}. (Only user mentions are wired — a role id
     would need the <@&id> form; see send_discord.) A rule fires (and @mentions) when a
-    matched listing of that grade is priced strictly BELOW `below`. Returns a list of
-    {"grade", "below", "mention"} with grade normalized (or None = any). Malformed
-    rules (no numeric `below`) are dropped silently so one typo can't break the scan.
+    matched listing of that grade is priced strictly BELOW `below`, or — written as
+    "at_or_below": <price> instead ("PSA 10 at $500 or below") — at that price or less.
+    Returns a list of {"grade", "below", "mention", "inclusive"} with grade normalized (or
+    None = any; "below" holds the threshold either way). Malformed rules (no numeric
+    threshold) are dropped silently so one typo can't break the scan.
     """
     out = []
     for r in (watch.get("price_alerts") or []):
         if not isinstance(r, dict):
             continue
+        inclusive = r.get("at_or_below") is not None
         try:
-            below = float(r.get("below"))
+            below = float(r.get("at_or_below") if inclusive else r.get("below"))
         except (TypeError, ValueError):
             continue
         g = r.get("grade")
         gk = g.lower().replace(" ", "") if isinstance(g, str) and g.strip() else None
         mention = r.get("mention")
         mention = str(mention).strip() if mention not in (None, "") else None
-        out.append({"grade": gk, "below": below, "mention": mention})
+        out.append({"grade": gk, "below": below, "mention": mention, "inclusive": inclusive})
     return out
+
+
+def under_target(rule, price):
+    """Is `price` under the rule's threshold: strictly below it, or at it for an at_or_below rule?"""
+    return price is not None and (price <= rule["below"] if rule.get("inclusive") else price < rule["below"])
 
 
 def price_alert_hit(rules, grade, price):
     """Return the first price_alert rule matched by (grade, price), or None.
 
     A rule matches when its grade is None (any) or equals `grade`, AND `price` is
-    known and strictly below the rule's threshold.
+    known and under the rule's threshold (see under_target).
     """
     if price is None:
         return None
     for r in rules:
-        if (r["grade"] is None or r["grade"] == grade) and price < r["below"]:
+        if (r["grade"] is None or r["grade"] == grade) and under_target(r, price):
             return r
     return None
 
@@ -2117,7 +2134,8 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
         # already-seen flags from the STORED prices, so an edit can't @mention every
         # listing already sitting under the new target (only true crossings ping).
         pa_key = f"pa_sig:{name}"
-        pa_sig = json.dumps(sorted([r["grade"] or "*", r["below"]] for r in price_alerts))
+        pa_sig = json.dumps(sorted([r["grade"] or "*", r["below"]] + (["<="] if r.get("inclusive") else [])
+                                   for r in price_alerts))
         seen_grade = {r[0]: r[5] for r in _rows}   # stored bucket (kept current below)
         seen_last = {r[0]: r[6] for r in _rows}    # last OBSERVED price
         if not dry_run and meta_get(conn, pa_key) != pa_sig:
@@ -2701,7 +2719,7 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
 
     def _band_hit(t, x):
         rule, p = t["rule"], x.get("price_low")
-        return (p is not None and p < rule["below"] and x.get("currency") in (None, "USD")
+        return (under_target(rule, p) and x.get("currency") in (None, "USD")
                 and (not rule.get("grade") or classify_grade(x["title"]) == rule["grade"]))
 
     def _run_task(t):
@@ -3064,10 +3082,13 @@ def _validate_watch(w, tag, valid_grades, warnings):
                 rt = f"{tag}: price_alerts[{j}]"
                 if not isinstance(r, dict):
                     warnings.append(f"{rt}: must be an object"); continue
+                key = "at_or_below" if r.get("at_or_below") is not None else "below"
+                if key == "at_or_below" and r.get("below") is not None:
+                    warnings.append(f"{rt}: has both 'below' and 'at_or_below' — 'at_or_below' is used")
                 try:
-                    float(r.get("below"))
+                    float(r.get(key))
                 except (TypeError, ValueError):
-                    warnings.append(f"{rt}: missing/invalid numeric 'below'")
+                    warnings.append(f"{rt}: missing/invalid numeric 'below' (or 'at_or_below')")
                 rg = r.get("grade")
                 if rg is not None:
                     rgk = rg.lower().replace(" ", "")
@@ -3079,8 +3100,10 @@ def _validate_watch(w, tag, valid_grades, warnings):
                     warnings.append(f"{rt}: no 'mention' — will alert without an @ping")
                 try:
                     lo = w.get("min_price")
-                    if lo is not None and float(r.get("below")) <= float(lo):
-                        warnings.append(f"{rt}: below={r.get('below')} <= min_price={lo} — can never fire")
+                    thr = float(r.get(key))
+                    if lo is not None and (thr < float(lo) or (key == "below" and thr <= float(lo))):
+                        warnings.append(f"{rt}: {key}={r.get(key)} {'<' if key == 'at_or_below' else '<='} "
+                                        f"min_price={lo} — can never fire")
                 except (TypeError, ValueError):
                     pass
     for r in w.get("allowed_regions", []):

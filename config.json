@@ -25,8 +25,8 @@
      "watches": ["Giratina V Alt Art 186/196 (Lost Origin)", "Mew ex 232/091 SIR (Paldean Fates)", "Mewtwo & Mew GX SM191 TAG TEAM (Black Star Promo)", "Rayquaza VMAX Alt Art 218/203 (Evolving Skies)", "Oshawott 105/086 — SV White Flare Illustration Rare (English, 2025)", "Rayquaza V Alt Art 194/203 (Evolving Skies)", "Rayquaza EX 123/124 Full Art (Dragons Exalted)", "Rayquaza 3/17 Holo (POP Series 1)", "Giratina 10/127 — Platinum Holo Rare (English, 2009)", "Rayquaza 144/BW-P — Nobunaga's Ambition Promo (Japanese, 2012)", "Luffy ST26-005 SP", "Luffy OP05-119 SEC (Alt / Manga Art)", "Luffy ST10-006 One Piece Day Dallas Promo", "Charizard 100/97 — EX Dragon Secret Rare (English, 2003)"]},
     {"query": "one piece (3rd,third) (anniversary,anniv)",
      "watches": ["One Piece 3rd Anniversary Set (English, sealed)"]},
-    {"query": "(squirtle,wartortle,growlithe,arcanine,gyarados,dragonair,ninetales,ninetails,articuno)",
-     "watches": ["Squirtle 007/018 McDonald's Promo (Japanese, 2002 e-Series)", "Squirtle No.007 — 1999 Japanese Squirtle Deck / Intro Pack (Japanese)", "Wartortle No.008 — 1999 Japanese Squirtle Deck / Intro Pack (Japanese)", "Growlithe #058 Vending Series 3 (Japanese, 1998)", "Light Arcanine No.059 — Neo Destiny (Japanese, 2001)", "Shining Gyarados 65/64 — Neo Revelation Secret Rare (English, 2001)", "Dark Dragonair 38/110 Reverse Holo — Legendary Collection (English, 2002)", "Morty's Ninetales 020/141 — Pokemon VS (Japanese, 2001)", "Articuno Holo #144 — 1998 Japanese Red/Green Quick Starter Gift Set"]},
+    {"query": "(squirtle,wartortle,growlithe,arcanine,gyarados,dragonair,ninetales,ninetails,articuno,tyranitar)",
+     "watches": ["Squirtle 007/018 McDonald's Promo (Japanese, 2002 e-Series)", "Squirtle No.007 — 1999 Japanese Squirtle Deck / Intro Pack (Japanese)", "Wartortle No.008 — 1999 Japanese Squirtle Deck / Intro Pack (Japanese)", "Growlithe #058 Vending Series 3 (Japanese, 1998)", "Light Arcanine No.059 — Neo Destiny (Japanese, 2001)", "Shining Gyarados 65/64 — Neo Revelation Secret Rare (English, 2001)", "Dark Dragonair 38/110 Reverse Holo — Legendary Collection (English, 2002)", "Morty's Ninetales 020/141 — Pokemon VS (Japanese, 2001)", "Articuno Holo #144 — 1998 Japanese Red/Green Quick Starter Gift Set", "Tyranitar V 155/163 Alt Full Art (Battle Styles)"]},
     {"query": "(houndoom,slowking,azumarill,piplup,psyduck,wailord,espeon,lugia,umbreon)",
      "watches": ["Houndoom H11/H32 — Aquapolis Holo Rare (English, 2003)", "Slowking H22/H32 — Aquapolis Holo Rare (English, 2003)", "Azumarill H4/H32 — Aquapolis Holo Rare (English, 2003)", "Blastoise & Piplup GX 215/236 Alt Full Art (Cosmic Eclipse)", "Slowpoke & Psyduck GX 218/236 Alt Full Art (Unified Minds)", "Magikarp & Wailord GX 161/181 Alt Full Art (Team Up)", "Espeon No.196 Crossing the Ruins (JP Neo Discovery) Holo", "Espeon 1/75 Neo Discovery Holo Rare (English)", "Lugia 9/111 Neo Genesis Holo Rare (English)", "Lugia ex 031/PLAY — 4th Season Players Club Promo (Japanese, 2006)", "Karen's Umbreon 091/141 (Pokemon VS, JP)", "Umbreon H29/H32 — Aquapolis Holo Rare (English, 2003)", "Espeon & Deoxys GX SM240 TAG TEAM (Black Star Promo)"]}
   ],
@@ -205,6 +205,37 @@
         {"grade": "psa10", "below": 3300, "mention": "209187722575872000"}
       ],
       "min_price": 40,
+      "max_price": null
+    },
+    {
+      "name": "Tyranitar V 155/163 Alt Full Art (Battle Styles)",
+      "_typical_price": "asking ~$250 raw (median of 51 US/CA asks, middle half $229-300) / PSA 10 Buy It Now asks from $690 (median $900); PSA 10 sales median ~$635 (30 sold Oct 22-Nov 6: $425-$800) (2026-11)",
+      "_note": "Pokemon, English Battle Styles (2021): the ALTERNATE full art Tyranitar V 155/163 (HYOGONOSUKE art). Battle Styles has three English Tyranitar V: 97/163 regular, 154/163 regular full art (PSA 10 ~$157) and 155/163 alternate full art (this one); plus the SWSH109 promo, Fusion Strike 158/264, and same-art prints with other numbers: Japanese/Thai S5I 077/070 (076/070 is the 154's), S-Chinese CS3aC 143/125, Korean. PSA labels both full arts '2021 POKEMON SWORD & SHIELD BATTLE STYLES #15x FULL ART/TYRANITAR V', so the number is the only difference. Signature 1 = '155/163'; signature 2 = the bare 155 anchored to a neighbouring token ('Battle Styles #155', '#155 FULL ART', '#155 FA', 'HOLO #155', 'Tyranitar V #155', 'Alt Art #155'), so cert numbers and prices can't satisfy it; signature 3 = 'Tyranitar V' + alt/alternate art, since the 155 is the only English Tyranitar V alt art (the other prints are excluded by number/set code or the language gate). Probe-validated 2026-11-07 (1,493 listings): 93 accepted under the real gates, all genuine 155s (35 PSA 10 incl. 2 'PSA 10 XOVER' CGC 10s, now read as CGC 10; 51 raw); every 154, 97, SWSH109, Chinese, Japanese, Korean and Thai listing rejected.",
+      "queries": [
+        "tyranitar v battle styles 155",
+        "tyranitar v alt art battle styles",
+        "tyranitar v 155/163 psa 10",
+        "tyranitar v psa 10"
+      ],
+      "rotate_queries": true,
+      "_queries_note": "eBay effectively IGNORES the number in 'tyranitar v 155/163' (2026-11-07 probe: 1 of its 60 newest results was a 155; '155' alone: 25 of 240), so the pinned query adds the set name: 'tyranitar v battle styles 155' returned 60/60 155s. The rotating slot: 'alt art battle styles' (59/60), the 155/163 PSA 10 search (slabs) and 'tyranitar v psa 10' (PSA label titles). New listings mostly arrive through the sweep.",
+      "match_any": [
+        ["tyranitar", "155/163"],
+        ["tyranitar v", ["styles 155", "155 full art", "155 fa", "holo 155", "155 tyranitar", "tyranitar v 155", "art 155", "fa 155", "rare 155"]],
+        ["tyranitar v", ["alt art", "alternate art", "alternative art", "alt full art", "alternate full art", "full alt art"]]
+      ],
+      "exclude": ["154/163", "styles 154", "154 full art", "154 fa", "tyranitar v 154", "art 154", "vmax", "vstar", "077/070", "s5i", "single strike master", "143/125", "cs3a", "thai", "metal", "gold foil", "custom", "replica", "oversize", "sequential"],
+      "_exclude_note": "The 154 (regular full art; PSA 10 ~$157 vs ~$635) in all its title forms, incl. a $10 'tyranitar v alternate full art 154/163'. 'vmax'/'vstar': 'tyranitar v' is a prefix of them. The same art's other prints: Japanese/Thai '077/070', 'S5I', 'Single Strike Master' (English titles say 'Single Strike' only), S-Chinese '143/125' / 'CS3aC', 'thai' (the language gate doesn't know Thai). Fakes ('metal', 'gold foil', 'custom', 'replica'), jumbos ('oversize') and two-slab 'sequential' lots.",
+      "grades": ["ungraded", "psa10", "bgs10", "bgs9.5", "cgc10"],
+      "language": "english",
+      "_min_price_note": "$100 floor: the cheapest genuine US raw asked $136 (2026-11-07), and it keeps out the $1-$15 97/163, 154/163 and SWSH109 copies if one ever slips past the rules. Played/damaged raw copies never alert anyway.",
+      "_price_alerts_note": "@mention when a PSA 10 lists AT $500 OR BELOW (set 2026-11-07 by request; 'at_or_below' is inclusive, so a $500.00 listing fires). Market that day: PSA 10 Buy It Now asks from $690; PriceCharting's last 30 PSA 10 sales (Oct 22-Nov 6) were $425-$800, median $635, only 1 of them at or under $500 (a $425 Fanatics fixed price), so expect it rarely. PSA 10 auctions with current bids of $273-$495 don't count: auctions are excluded from this watch. CGC 10s (sales median $378) and BGS 9.5s ($268) sit under the target but are other grades. Item price in USD (shipping not included). Pings once per crossing, re-arms if the price rises back above target. Also puts this watch's sweep on the priority tier.",
+      "price_band_query": "tyranitar v 155 psa 10",
+      "_price_band_note": "The $200-$500 Buy It Now band (floor = 40% of target). On 2026-11-07 'tyranitar v 155 psa 10' found 25 accepted listings in the band vs 6 for the broader 'tyranitar v psa 10' (whose page eBay pads with other Tyranitar cards).",
+      "price_alerts": [
+        {"grade": "psa10", "at_or_below": 500, "mention": "209187722575872000"}
+      ],
+      "min_price": 100,
       "max_price": null
     },
     {

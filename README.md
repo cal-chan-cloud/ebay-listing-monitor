@@ -32,6 +32,7 @@ card game). Currently watching (English unless noted; grades: ungraded / PSA 10 
 - **Mew ex 232/091** — Paldean Fates "Bubble Mew" Special Illustration Rare (not the 216/091 Shiny; English, $300 floor)
 - **Mewtwo & Mew GX SM191** — Sun & Moon Black Star Promo TAG TEAM full art (English; not the Unified Minds 71/222/236 versions; $75 floor; @mention when a PSA 10 lists under $1,500)
 - **Espeon & Deoxys GX SM240** — Sun & Moon Black Star Promo TAG TEAM special full art from the 2020 TAG TEAM Powers Collection (English; keyed on `espeon` + `SM240`, or `espeon` + `deoxys` + Black Star/BSP for number-less titles; not the Unified Minds 72/236, Japanese Tag All Stars 176/177/212, Japanese/Indonesian SM Promo #175, Jumbo, sealed boxes or Umbreon & Darkrai SM241 pairs; $40 floor; @mention when a PSA 10 lists under $3,300)
+- **Tyranitar V 155/163** — Battle Styles alternate full art (English; keyed on `155/163`, PSA's label form "Battle Styles #155 Full Art/Tyranitar V", or "Tyranitar V" + alt art; not the 154/163 regular full art, 97/163, SWSH109 promo, or the same art's Japanese/Thai 077/070, S-Chinese 143/125 and Korean prints; $100 floor; @mention when a PSA 10 lists **at $500 or below**)
 - **Slowpoke & Psyduck GX 218/236** — Unified Minds TAG TEAM alternate full art (English; not the 35/217/239 versions; $100 floor)
 - **Blastoise & Piplup GX 215/236** — Cosmic Eclipse TAG TEAM alternate full art (English; not the 38/214/253 versions; $150 floor)
 - **Magikarp & Wailord GX 161/181** — Team Up TAG TEAM alternate full art (English; not the 160/181 full art, 183/181 rainbow, Japanese Tag Bolt or Chinese 161/150; $200 floor)
@@ -339,6 +340,8 @@ Add entries to the `watches` array in `config.json`:
   on Discord**. Each rule is `{"grade": <bucket, optional>, "below": <USD>, "mention":
   "<discord id>"}` and fires when a matched listing of that grade is priced strictly
   **below** the threshold (USD only — foreign-currency listings are never compared).
+  Write `"at_or_below": <USD>` instead of `"below"` for an inclusive target ("$500 or
+  below": a $500.00 listing fires too, and the ping reads "at your $500.00 target").
   Example — ping a user when a PSA 10 lists under $2,300:
   ```json
   "price_alerts": [
@@ -411,8 +414,9 @@ Add entries to the `watches` array in `config.json`:
 - **Grade-spelling tolerance** — `PSA-10`, `PSA10`, `BGS-9.5` (not just `PSA 10`)
   all classify correctly instead of falling through to "graded (other)". A PSA 10
   *comparison* on another grader's slab (`CGC 10 PRISTINE (PSA 10+)`, `BGS 9.5 (PSA 10
-  equivalent)`, or a bare `(PSA 10)` next to a BGS/CGC/TAG grade) is read as that slab's
-  grade, so it can't fire a PSA 10 price target.
+  equivalent)`, a crossover pitch like `CGC 10 ... PSA 10 XOVER`, or a bare `(PSA 10)` next
+  to a BGS/CGC/TAG grade) is read as that slab's grade, so it can't fire a PSA 10 price
+  target.
 - **Health-check debounce** — a single quiet pass where nothing matches no longer
   trips a false ⚠️ alert; the "0 matched" alarm only fires after several consecutive
   zero-match scans (`zero_match_alert_scans`, default 3). A true "0 scraped"

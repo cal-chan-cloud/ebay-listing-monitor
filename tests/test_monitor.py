@@ -104,6 +104,14 @@ check("'CGC Pristine (PSA 10)' -> cgc10", m.classify_grade("Mew ex 232/091 CGC P
 check("'TAG 10 (PSA 10)' -> other_graded", m.classify_grade("Giratina V 186/196 TAG 10 (PSA 10)"), "other_graded")
 check("'Tag Team ... (PSA 10)' stays a PSA 10 (TAG with no grade isn't a grader)",
       m.classify_grade("Espeon & Deoxys GX Tag Team SM240 2020 (PSA 10)"), "psa10")
+# 2026-11-07 probe: CGC 10s pitched for a PSA crossover at $550-595 read as PSA 10s
+check("'CGC 10 ... PSA 10 XOVER' -> cgc10",
+      m.classify_grade("CGC 10 Tyranitar V 155/163 Pokemon Battle Styles 2021 CGC 10 PSA 10 XOVER"), "cgc10")
+check("'BGS 9.5 ... crossover to PSA 10' -> bgs9.5",
+      m.classify_grade("Charizard 100/97 BGS 9.5 Gem Mint crossover to PSA 10"), "bgs9.5")
+check("a plain PSA 10 stays a PSA 10", m.classify_grade("Tyranitar V 155/163 Alt Art PSA 10 Gem Mint"), "psa10")
+check("'PSA 10 crossover' with no other grade stays a PSA 10",
+      m.classify_grade("Tyranitar V 155/163 PSA 10 crossover"), "psa10")
 check("'PSA 10 + free toploader' stays a PSA 10", m.classify_grade("Giratina V 186/196 PSA 10 + Free Toploader"), "psa10")
 check("number-less 'CGC Pristine' -> cgc10",
       m.classify_grade("Pokemon Mew ex 232/091 SV Paldean Fates SIR Full Art Holo CGC Pristine 2024 EN"), "cgc10")
@@ -805,6 +813,34 @@ ok("hit: at threshold no", m.price_alert_hit(_par, "psa10", 2700.0) is None)
 ok("hit: wrong grade no", m.price_alert_hit(_par, "bgs10", 100.0) is None)     # 100<2700 but rule is psa10; any-rule is <50
 ok("hit: any-grade fires", m.price_alert_hit(_par, "bgs10", 40.0)["grade"] is None)
 ok("hit: price None no", m.price_alert_hit(_par, "psa10", None) is None)
+# "PSA 10 at $500 or below" (2026-11-07): at_or_below is inclusive, below stays strict
+_pai = m.parse_price_alerts({"price_alerts": [{"grade": "psa10", "at_or_below": "500", "mention": "1"}]})
+ok("parse: at_or_below -> inclusive rule at 500", _pai == [{"grade": "psa10", "below": 500.0, "mention": "1",
+                                                             "inclusive": True}])
+ok("parse: a 'below' rule is not inclusive", _par[0]["inclusive"] is False)
+ok("hit: at_or_below fires AT the price", m.price_alert_hit(_pai, "psa10", 500.0) is not None)
+ok("hit: ...and under it, not a cent over", m.price_alert_hit(_pai, "psa10", 499.99) is not None
+   and m.price_alert_hit(_pai, "psa10", 500.01) is None)
+_vi = m.validate_config({"watches": [{"name": "X", "queries": ["q"], "require": ["a"], "grades": ["psa10"],
+                                      "min_price": 500, "price_alerts": [
+                                          {"grade": "psa10", "at_or_below": 500, "mention": "1"}]}]})
+check("validate: at_or_below is a valid threshold (and at == min_price can fire)", _vi, [])
+_vi2 = m.validate_config({"watches": [{"name": "X", "queries": ["q"], "require": ["a"], "grades": ["psa10"],
+                                       "price_alerts": [{"grade": "psa10", "at_or_below": "x", "below": 5,
+                                                         "mention": "1"}]}]})
+ok("validate: both keys / bad at_or_below are warned", any("both" in w for w in _vi2)
+   and any("invalid numeric" in w for w in _vi2))
+_tgt_msgs = []
+_sv_pw = m._post_webhook
+m._post_webhook = lambda url, payload, attempts=4: (_tgt_msgs.append(payload), True)[1]
+m.send_discord("https://discord.com/api/webhooks/1/x", "Tyranitar V 155/163",
+               {"title": "Tyranitar V 155/163 PSA 10", "price_str": "$500.00", "price_low": 500.0,
+                "url": "https://www.ebay.com/itm/1", "item_id": "1"}, "psa10",
+               event="new", mention="1", alert_threshold=500.0)
+m._post_webhook = _sv_pw
+_tj = json.dumps(_tgt_msgs, ensure_ascii=False)
+ok("discord: a listing AT an at_or_below target reads 'at your $500.00 target' (not '$0 under')",
+   "at your $500.00 target" in _tj and "$0 (" not in _tj)
 
 # --- validate_config warnings ---
 _vw = m.validate_config({"watches": [{"name": "X", "queries": ["q"], "require": ["a"],
