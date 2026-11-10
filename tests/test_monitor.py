@@ -495,6 +495,24 @@ ok("a 0-matched pass after a 0-scraped DOWN is not a recovery", not any("recover
    and m.meta_get(conn, "health") == "down")
 run([L("1", "$200.00", 200.0)])
 ok("...the next pass that matches is", any("recover" in t.lower() for t, _ in health))
+# 2026-11-09: when eBay refuses every search, the notice says so (not "maybe a layout change"),
+# a DOWN recorded before the reminder timestamps existed isn't re-announced at once, and one
+# still unresolved a day after its last notice is announced again.
+health.clear()
+m.EBAY_BLOCK.update(fails=15, since=m.datetime.now(m.timezone.utc), next_probe=m.time.monotonic() + 900)
+run([])
+ok("a DOWN while eBay refuses every search names the block", any("refusing the monitor's searches" in txt
+                                                                 for _, txt in health))
+health.clear()
+m.meta_set(conn, "health_notice_at", "")
+run([])
+ok("a DOWN without a notice timestamp (recorded by older code) is not re-announced at once", health == [])
+m.meta_set(conn, "health_notice_at", (m.datetime.now(m.timezone.utc) - m.timedelta(hours=25)).isoformat())
+run([])
+ok("...but one still down a day after its last notice is announced again ('Still down since')",
+   any("Still down since" in txt for _, txt in health))
+m.EBAY_BLOCK.update(fails=0, since=None, next_probe=0.0)
+run([L("1", "$200.00", 200.0)])
 
 stale = (m.datetime.now(m.timezone.utc) - m.timedelta(days=40)).date().isoformat()
 conn.execute("INSERT OR REPLACE INTO seen(watch,item_id,grade,first_seen,price,price_str,last_seen) "
@@ -530,6 +548,13 @@ MKT = {"v": 100.0}
 m.get_market_prices = lambda conn_, domain, watch, grades, **k: {"ungraded": MKT["v"]}
 run([L("b2", "$98.00", 98.0)])            # market 100 -> 98 not below (needs <95); seeds below_alerted=0
 MKT["v"] = 120.0                          # market rises -> 98 now below 120*0.95=114
+# 2026-11-09: within the hour of its NEW ping, at an unchanged price, a reference move is not news
+# (production: a sweep judged it against the stored reference, the next pass against a fresh one)
+ok("a listing pinged NEW minutes ago at the same price gets no second 'below market' ping",
+   not any(r[0] == "below_market" and r[1] == "b2" for r in run([L("b2", "$98.00", 98.0)])))
+conn.execute("UPDATE seen SET below_alerted=0 WHERE item_id='b2'")
+conn.execute("UPDATE pings SET ts='2026-01-01T00:00:00+00:00' WHERE item_id='b2'")   # the NEW ping was long ago
+conn.commit()
 s = run([L("b2", "$98.00", 98.0)])
 ok("below-market crossing pings", any(r[0] == "below_market" and r[1] == "b2" for r in s))
 ok("below-market not repeated", not any(r[0] == "below_market" for r in run([L("b2", "$98.00", 98.0)])))
@@ -2128,6 +2153,22 @@ _r = _wdrun([{"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "upda
 ok("a run that failed only at its persist step is restarted at once (not 'crashing', no 5 h wait)",
    _wd_disp == [1] and "crashing" not in _r and "may not have been saved" in _r)
 _wd.failed_steps = lambda rid: None
+# 2026-11-09: a committed health DOWN is the running monitor's to report (it re-sends it daily);
+# the watchdog repeated it 3.5 h after the monitor's own notice. Raised only with no run alive.
+import sqlite3 as _sq3
+_hdb = os.path.join(_TMPD, "wd_health.db")
+_hc = _sq3.connect(_hdb)
+_hc.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+_hc.executemany("INSERT OR REPLACE INTO meta VALUES (?, ?)",
+                [("health", "down"), ("health_down_at", "2026-11-10T00:10:23+00:00")])
+_hc.commit(); _hc.close()
+_sv_wd_db, _wd.DB = _wd.DB, _hdb
+ok("a committed health DOWN isn't repeated while a monitor run is active", _wdrun([
+    {"createdAt": _ago(0.3), "startedAt": _ago(0.3), "status": "in_progress", "conclusion": ""}]) == "")
+ok("...but is raised (with its start time) when no monitor run is alive", "since 2026-11-10 00:10" in _wdrun([
+    {"databaseId": 9, "createdAt": _ago(4), "startedAt": _ago(4), "updatedAt": _ago(0.1),
+     "status": "completed", "conclusion": "success"}]))
+_wd.DB = _sv_wd_db
 _wd.workflow_state = _sv_wfs
 
 # ==========================================================================
@@ -2351,6 +2392,30 @@ except SystemExit as e:
 if _sv_env_hook is not None:
     os.environ["DISCORD_WEBHOOK_URL"] = _sv_env_hook
 check("no webhook configured in CI -> exit 1 before scanning", (_nh_code, len(_nohook_scans)), (1, 0))
+# 2026-11-09: while eBay refuses every search the loop runs one probe pass every 15 min (it would
+# otherwise spin through passes whose searches are all skipped) and never rerolls (a fresh runner
+# doesn't help: eBay refused the monitor from GitHub and from a home connection alike)
+m.load_config = lambda: {"poll_interval_seconds": 0, "discord_webhook_url": "https://discord.test/wh",
+                         "watches": [{"name": "R", "require": ["x"], "grades": ["ungraded"]}]}
+_p11 = []
+def _blocked_scan(cfg, conn, **k):
+    _p11.append(round(_cclock[0]))
+    _cclock[0] += 5
+    m.EBAY_BLOCK.update(since=m.datetime.now(m.timezone.utc), next_probe=_cclock[0] + m.BLOCK_PROBE_SECONDS)
+    m.LAST_SCAN.update(broken=True, blocked=True, scraped=0, matched=0, errored=False)
+    return 0
+m.scan_once = _blocked_scan
+m.egress_country = lambda: "US"
+sys.argv = ["ebay_monitor.py", "--loop-for-minutes", "60", "--reroll-exit"]
+try:
+    m.main()
+    _b11_code = 0
+except SystemExit as e:
+    _b11_code = e.code
+check("blocked: one probe pass per 15 min (4 in an hour, not hundreds) and no reroll (exit 0, not 75)",
+      (len(_p11), _b11_code), (4, 0))
+m.EBAY_BLOCK.update(fails=0, since=None, next_probe=0.0)
+sys.argv = ["ebay_monitor.py", "--loop-for-minutes", "10"]
 for _k, _v in _sv_crash.items():
     setattr(m, _k, _v)
 m.time.monotonic, sys.argv, m.time.sleep = _sv_mono_c, _sv_argv_c, _sv_sleep_c
@@ -2883,6 +2948,66 @@ _gets9.clear()
 m.get_session = lambda d: _S9([_R9(200, "<html>Pardon Our Interruption</html>")])
 check("a persistent soft-block page returns [] ...", list(m.fetch_listings("www.ebay.com", "q")), [])
 check("...after the full 4 attempts", len(_gets9), 4)
+
+print("== eBay block breaker: stop hammering when EVERY search is refused (2026-11-09) ==")
+_sv10_mono = m.time.monotonic
+m.EBAY_BLOCK.update(fails=0, since=None, next_probe=0.0)
+_clk10 = [50000.0]
+m.time.monotonic = lambda: _clk10[0]
+m.get_session = lambda d: _S9([_R9(403, "Access Denied")])
+for _i in range(m.BLOCK_AFTER_FAILED_SEARCHES - 1):
+    try:
+        m.fetch_listings("www.ebay.com", f"q{_i}")
+    except m.requests.HTTPError:
+        pass
+ok("one refusal short of the threshold: still scanning", not m.ebay_blocked())
+try:
+    m.fetch_listings("www.ebay.com", "q-last")
+except m.requests.HTTPError:
+    pass
+ok(f"{m.BLOCK_AFTER_FAILED_SEARCHES} searches refused in a row (every attempt) trip the breaker", m.ebay_blocked())
+_n10 = len(_gets9)
+try:
+    m.fetch_listings("www.ebay.com", "next"); _skip10 = False
+except m.EbayBlocked:
+    _skip10 = True
+ok("...after which a search is skipped without sending any request", _skip10 and len(_gets9) == _n10)
+_clk10[0] += m.BLOCK_PROBE_SECONDS + 1
+try:
+    m.fetch_listings("www.ebay.com", "q", sold=True); _sold10 = False
+except m.EbayBlocked:
+    _sold10 = True
+ok("...sold lookups are skipped while it is open", _sold10 and len(_gets9) == _n10)
+try:
+    m.fetch_listings("www.ebay.com", "probe")
+except m.requests.HTTPError:
+    pass
+# (the probe keeps the normal retries: ~45% of first attempts draw a random 403 even when eBay
+# is fine, so a one-try probe would miss a recovery about half the time)
+check("...a due probe isn't used up by a sold lookup: ONE search goes out, with the normal 4 tries",
+      len(_gets9) - _n10, 4)
+ok("...a refused probe keeps it paused", m.ebay_blocked())
+_n10 = len(_gets9)
+try:
+    m.fetch_listings("www.ebay.com", "next2"); _skip10 = False
+except m.EbayBlocked:
+    _skip10 = True
+ok("...until the next probe is due", _skip10 and len(_gets9) == _n10)
+_clk10[0] += m.BLOCK_PROBE_SECONDS + 1
+m.get_session = lambda d: _S9([_R9(403, "Access Denied"), _R9(200, _page9)])
+_r10 = m.fetch_listings("www.ebay.com", "luffy op05-119")
+ok("...and the first answered probe (a random 403, then a page) resumes scanning",
+   not m.ebay_blocked() and len(_r10) == 1)
+m.EBAY_BLOCK.update(fails=0, since=None, next_probe=0.0)
+m.get_session = lambda d: _S9([_R9(403, "Access Denied")])
+for _i in range(m.BLOCK_AFTER_FAILED_SEARCHES + 5):
+    try:
+        m.fetch_listings("www.ebay.com", "q", sold=True)
+    except m.requests.HTTPError:
+        pass
+ok("sold lookups (which need a sign-in anyway) never trip it", not m.ebay_blocked())
+m.EBAY_BLOCK.update(fails=0, since=None, next_probe=0.0)
+m.time.monotonic = _sv10_mono
 m.get_session, m.prime_session, m._throttle_request, m.time.sleep = _sv9
 
 print("== adaptive pace ==")

@@ -994,6 +994,45 @@ class _Results(list):
     q_err = frozenset()      # fetch_all: queries whose fetch raised or returned no real page
 
 
+# Block breaker (2026-11-09): from ~21:30 UTC eBay's bot protection (Akamai) refused EVERY search
+# from the monitor, on GitHub runners and from a home connection alike (the homepage still loaded
+# at first; by ~03:50 UTC it was refused too). The monitor kept its full pace through it: ~1,000
+# refused requests per full pass, then 4 sweeps every ~90 s, each tried 4 times. Once this many searches IN A ROW fail every attempt,
+# eBay is blocking the monitor rather than throttling single requests (normally ~45% of first
+# attempts draw a 403 and ~97% succeed within 4): searches pause, one probe goes out every
+# BLOCK_PROBE_SECONDS, and the first answered search resumes scanning.
+BLOCK_AFTER_FAILED_SEARCHES = 15
+BLOCK_PROBE_SECONDS = 900
+HEALTH_REMIND_HOURS = 24   # a health DOWN still unresolved this long after its last notice is re-sent
+EBAY_BLOCK = {"fails": 0, "since": None, "next_probe": 0.0}
+_BLOCK_LOCK = threading.Lock()
+
+
+class EbayBlocked(Exception):
+    """Raised instead of requesting eBay while the block breaker is open (EBAY_BLOCK)."""
+
+
+def ebay_blocked() -> bool:
+    return EBAY_BLOCK["since"] is not None
+
+
+def _block_note(answered: bool):
+    """Record one search's outcome (all attempts refused, or answered) for the block breaker."""
+    with _BLOCK_LOCK:
+        if answered:
+            if EBAY_BLOCK["since"] is not None:
+                print(f"eBay is answering searches again (refused since {EBAY_BLOCK['since']:%Y-%m-%d %H:%M} "
+                      "UTC): scanning resumes.")
+            EBAY_BLOCK.update(fails=0, since=None)
+            return
+        EBAY_BLOCK["fails"] += 1
+        if EBAY_BLOCK["since"] is None and EBAY_BLOCK["fails"] >= BLOCK_AFTER_FAILED_SEARCHES:
+            EBAY_BLOCK["since"] = datetime.now(timezone.utc)
+            EBAY_BLOCK["next_probe"] = time.monotonic() + BLOCK_PROBE_SECONDS
+            print(f"eBay refused {EBAY_BLOCK['fails']} searches in a row (every attempt): pausing searches, "
+                  f"one probe every {BLOCK_PROBE_SECONDS // 60} min.", file=sys.stderr)
+
+
 def fetch_listings(domain: str, query: str, max_attempts: int = 4, sold: bool = False,
                    worldwide: bool = False, params=None):
     """Return a list of dicts: {item_id, title, price_str, price_low, url, ...}.
@@ -1004,6 +1043,19 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4, sold: bool = 
     params adds URL parameters (see build_search_url).
     """
     url = build_search_url(domain, query, sold=sold, worldwide=worldwide, params=params)
+    # Block breaker: while eBay is refusing every search, don't request at all, except one probe
+    # every BLOCK_PROBE_SECONDS. The probe keeps the normal retries: ~45% of first attempts from
+    # a runner draw a random 403 even when eBay is fine, so a single try would miss a recovery
+    # about half the time. Sold lookups (which need a sign-in anyway) are skipped and never take
+    # the probe slot; they never count toward tripping or clearing it either.
+    if ebay_blocked():
+        if sold:
+            raise EbayBlocked("eBay is refusing the monitor's searches (sold lookup skipped)")
+        with _BLOCK_LOCK:
+            if time.monotonic() < EBAY_BLOCK["next_probe"]:
+                raise EbayBlocked("eBay is refusing the monitor's searches (paused; probing every "
+                                  f"{BLOCK_PROBE_SECONDS // 60} min)")
+            EBAY_BLOCK["next_probe"] = time.monotonic() + BLOCK_PROBE_SECONDS
     session = get_session(domain)
 
     html_text = None
@@ -1029,11 +1081,13 @@ def fetch_listings(domain: str, query: str, max_attempts: int = 4, sold: bool = 
                 continue
             if not sold:
                 _fstat("failed")
+                _block_note(answered=False)
             resp.raise_for_status()  # give a real error if it was a 403
             print(f"warning: eBay soft-block persisted after {attempt} attempts", file=sys.stderr)
             return []
         if not sold:
             _fstat("retry_ok" if attempt > 1 else "ok")
+            _block_note(answered=True)
         html_text = resp.text
         break
 
@@ -1194,6 +1248,8 @@ def fetch_all(domain: str, watch: dict, delay: float = 0.0, sold: bool = False, 
                 q_err.add(q)                       # blocked: this query's results weren't seen
             for lst in res:
                 merged.setdefault(lst["item_id"], lst).setdefault("_q", set()).add(q)
+        except EbayBlocked:
+            q_err.add(q)                           # skipped while eBay refuses every search (quietly)
         except Exception as e:
             q_err.add(q)
             print(f"[{watch.get('name','?')}] query {q!r} error: {e}", file=sys.stderr)
@@ -1949,6 +2005,16 @@ def under_target(rule, price):
     return price is not None and (price <= rule["below"] if rule.get("inclusive") else price < rule["below"])
 
 
+def _pinged_new_within(conn, watch, item_id, seconds):
+    """Was this listing announced as NEW (pings table) within the last `seconds`?"""
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=seconds)).isoformat(timespec="seconds")
+    try:
+        return conn.execute("SELECT 1 FROM pings WHERE watch=? AND item_id=? AND kind IN ('new', 'target_new') "
+                            "AND ts >= ? LIMIT 1", (watch, item_id, cutoff)).fetchone() is not None
+    except sqlite3.Error:
+        return False
+
+
 def price_alert_sig(rules):
     """A watch's price rules as stored in meta pa_sig:<watch> (a change re-syncs its flags). An
     inclusive at_or_below rule adds a marker, so existing 'below' rules keep their old signature."""
@@ -2633,7 +2699,11 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                     continue
                 # (2) newly below market (no drop this pass)?
                 if below and not ref_below:
-                    if ask_bl:
+                    # A listing pinged as NEW within the hour at this same price: the reference
+                    # moved under it (a sweep judged it against the stored reference, this pass
+                    # against a fresh one), and a second ping for an unchanged price minutes later
+                    # is noise (3 such pairs 11-08..11-09, all <20 min apart). Record it silently.
+                    if ask_bl or (cur == ref_price and _pinged_new_within(conn, name, item_id, 3600)):
                         # First scan with a reference available — record the state,
                         # don't alert. Genuine future crossings still fire normally.
                         conn.execute("UPDATE seen SET below_alerted=1, last_seen=? "
@@ -2870,6 +2940,8 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
             # eBay pads thin results with "fewer words" near-misses, so a real sweep / band page
             # can be mostly padding: only a page with (almost) nothing on-topic is a soft-block.
             ok = bool(getattr(res, "page_ok", False)) and not _irrelevant_page(t["query"], res, min_frac=0.05)
+        except EbayBlocked:
+            res, ok = [], False                    # skipped while eBay refuses every search (quietly)
         except Exception as e:
             print(f"[{t['kind']} {t['query'][:48]!r}] fetch error: {e}", file=sys.stderr)
             res, ok = [], False
@@ -3086,7 +3158,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
     # Whole-scan verdict for the loop (main): a broken FULL scan on CI usually means this
     # runner's IP is geo-localized outside the US or being blocked -> try a fresh runner.
     LAST_SCAN.update(broken=bool(watches) and not all_errored and (total_scraped == 0 or total_matched == 0),
-                     errored=all_errored, scraped=total_scraped, matched=total_matched, diag=diag)
+                     errored=all_errored, scraped=total_scraped, matched=total_matched, diag=diag,
+                     # eBay refusing every search is not this runner's geo: a fresh runner doesn't help
+                     # (2026-11-09: refused from GitHub and from a home connection alike), so no reroll
+                     blocked=ebay_blocked())
 
     if not dry_run and not reseed and not all_errored:
         watches = cfg.get("watches", [])
@@ -3110,8 +3185,29 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
 
         healthy = not (scrape_broken or (match_broken and streak >= zero_match_scans))
         prev = meta_get(conn, "health", "ok")
-        if not healthy and prev == "ok":
-            if scrape_broken and total_scraped:
+        _now = datetime.now(timezone.utc)
+        try:
+            _last_notice = datetime.fromisoformat(meta_get(conn, "health_notice_at", "") or "")
+        except ValueError:
+            _last_notice = None
+        if prev == "down" and _last_notice is None:
+            # a DOWN recorded before these timestamps existed: start the reminder clock now
+            # rather than re-announcing it at once
+            _last_notice = _now
+            meta_set(conn, "health_notice_at", _now.isoformat(timespec="seconds"))
+        # Still down a day after the last notice (a long eBay block): say so again, since the first
+        # notice has long scrolled away. The watchdog no longer repeats it while the monitor runs.
+        remind = (not healthy and prev == "down"
+                  and (_now - _last_notice).total_seconds() >= HEALTH_REMIND_HOURS * 3600)
+        if not healthy and (prev == "ok" or remind):
+            if ebay_blocked():
+                # (no "since" of its own: each CI segment is a new process that re-trips the breaker,
+                # so its trip time would contradict the reminder's "Still down since")
+                msg = (f"eBay is refusing the monitor's searches: {EBAY_BLOCK['fails']} in a row were refused "
+                       "on every try (HTTP 403 or a bot-check page). That is eBay's bot protection, not a "
+                       f"page-layout change. Searches are paused (one probe every {BLOCK_PROBE_SECONDS // 60} "
+                       "min) and scanning resumes by itself when eBay answers again.")
+            elif scrape_broken and total_scraped:
                 msg = (f"eBay served unrelated/degraded results pages for all {_PAGE_STATS['pages']} "
                        f"searches ({total_scraped} off-query listings) — the scraper is likely being "
                        "soft-blocked (not a filter problem).")
@@ -3122,12 +3218,15 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                 msg = (f"{total_scraped} listings scraped but 0 matched any watch across "
                        f"{streak} consecutive scans — a filter, the region filter, or an eBay "
                        "layout change likely broke matching.")
-            if diag:
+            if diag and not ebay_blocked():
                 msg += f" Diagnosis: {diag}."
             if EGRESS.get("country"):
                 msg += f" Runner egress country: {EGRESS['country']}."
             msg += " No alerts will fire until this recovers."
-            print(f"[{ts}] HEALTH DOWN: {msg}", file=sys.stderr)
+            _since = meta_get(conn, "health_down_at", "")
+            if remind and _since:
+                msg = f"Still down since {_since[:16].replace('T', ' ')} UTC. " + msg
+            print(f"[{ts}] HEALTH DOWN{' (reminder)' if remind else ''}: {msg}", file=sys.stderr)
             _notified = True
             if webhook and not webhook.startswith("PASTE_"):
                 try:
@@ -3137,7 +3236,10 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
                     _notified = False   # stay 'ok' so the next pass re-sends the notice
                     print(f"health alert error: {e}", file=sys.stderr)
             if _notified:
-                meta_set(conn, "health", "down")
+                if prev == "ok":
+                    meta_set(conn, "health", "down")
+                    meta_set(conn, "health_down_at", _now.isoformat(timespec="seconds"))
+                meta_set(conn, "health_notice_at", _now.isoformat(timespec="seconds"))
         elif healthy and prev == "down" and total_matched > 0:
             # (a pass that scraped listings but matched nothing is not a recovery: after a
             # 0-scraped DOWN its streak restarts at 1, which read as healthy and flapped the
@@ -3521,6 +3623,13 @@ def main():
         reroll = False
         while True:
             now = time.monotonic()
+            # eBay is refusing every search: nothing can run until the next probe is due. (Without
+            # this the loop would spin through passes whose searches are all skipped.)
+            if ebay_blocked() and now < EBAY_BLOCK["next_probe"]:
+                if deadline - EBAY_BLOCK["next_probe"] < 15.0:
+                    break
+                time.sleep(EBAY_BLOCK["next_probe"] - now)
+                continue
             due_full = last_full is None or (now - last_full) >= interval
             # Only start a full pass that can finish inside the window: the last pass's real
             # duration (minutes, with the priority rounds inside it) can exceed the interval.
@@ -3538,7 +3647,8 @@ def main():
                         last_full = time.monotonic(); full_passes += 1
                         last_full_dur = last_full - now
                     clean_fulls += 1
-                    if args.reroll_exit and LAST_SCAN and not LAST_SCAN.get("errored"):
+                    if (args.reroll_exit and LAST_SCAN and not LAST_SCAN.get("errored")
+                            and not LAST_SCAN.get("blocked")):
                         if LAST_SCAN.get("broken"):
                             bad_fulls += 1
                             if bad_fulls >= BROKEN_FULL_SCANS_TO_REROLL and request_reroll(

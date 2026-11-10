@@ -442,7 +442,19 @@ Add entries to the `watches` array in `config.json`:
   its rule, so a new or edited target never @mentions listings already under it; a sighting
   in another currency can't re-arm a target; at most 3 under-target backlog pings per watch
   per pass. `MATCHER_VERSION` is part of every watch's rules signature: bump it when a
-  matcher code change can newly match listings that are already up.
+  matcher code change can newly match listings that are already up. A listing pinged as new
+  less than an hour ago at the same price isn't pinged again as "below market" when the
+  reference drifts under it.
+- **eBay block breaker (2026-11-09)** — when 15 searches in a row are refused on every try
+  (eBay's Akamai bot protection refused the monitor's searches from GitHub runners and from a
+  home connection alike), the monitor stops searching: one probe search every 15 min (with
+  the normal retries), sold lookups skipped, no runner rerolls (a fresh runner doesn't help),
+  and scanning resumes by itself at the first answered search. The HEALTH DOWN notice names
+  the block instead of guessing at a layout change, and a DOWN still unresolved 24 h after its
+  last notice is re-sent ("Still down since ..."). The watchdog no longer repeats a committed
+  DOWN while a monitor run is alive (that only doubled the @mentions). The monitor does not
+  try to get around the block (no proxies, TLS impersonation or headless browser); the
+  supported way back is eBay's official Browse API.
 - **Market-price cache** — a real recent-sold median is cached ~6h, but a failed or
   too-few-comps lookup (`None`) is *not* cached, so it's retried on the next scan
   instead of leaving the card without a market price for hours.

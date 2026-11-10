@@ -201,6 +201,7 @@ def main():
     now = datetime.now(timezone.utc)
     problems = []
     restart = None          # why the requeue chain looks dropped (-> dispatch a new run)
+    alive = None            # a monitor run is running or queued (None: couldn't tell)
 
     # Disabling monitor.yml is how the owner STOPS the monitor: don't alert (or try to restart
     # it) every few hours afterwards. GitHub's own inactivity disable is a different story.
@@ -272,6 +273,7 @@ def main():
         # (nothing is retrying it any more); a successful run whose successor is missing after
         # RESTART_AFTER_MIN; a crash only once nothing has run for STALE_HOURS (no crash loop).
         queued = any(r.get("status") in ("queued", "pending", "waiting", "requested") for r in runs)
+        alive = running or queued
         if newest and not running and not queued:
             idle_min = (now - _t(newest, "updatedAt")).total_seconds() / 60
             if restart is not None:
@@ -299,13 +301,22 @@ def main():
         # runs == [] : gh succeeded but found no runs — note it, don't hard-alert.
         print("watchdog: gh returned no monitor runs (skipping recency/failure checks).")
 
+    # A committed health DOWN is the monitor's OWN verdict, already announced by it (it re-sends
+    # it once a day while it lasts). Repeating it every few hours while the monitor still runs
+    # only doubled the @mentions (2026-11-09: the 4:10 PM notice, then this at 7:36 PM), so it is
+    # raised here only when no monitor run is alive to speak for itself.
     try:
-        if os.path.exists(DB):
+        if os.path.exists(DB) and alive is not True:
             c = sqlite3.connect(DB)
             row = c.execute("SELECT value FROM meta WHERE key='health'").fetchone()
             if row and row[0] == "down":
-                problems.append("Committed health state is DOWN (0 scraped, or 0 matched across scans) "
-                                "and hasn't recovered — the scraper or matching is broken.")
+                since = c.execute("SELECT value FROM meta WHERE key='health_down_at'").fetchone()
+                problems.append("Committed health state is DOWN (0 scraped, or 0 matched across scans)"
+                                + (f" since {since[0][:16].replace('T', ' ')} UTC" if since and since[0] else "")
+                                + (" and no monitor run is active to recover it." if alive is False else
+                                   " and the watchdog couldn't confirm that a monitor run is active."))
+        elif alive:
+            print("watchdog: health is the running monitor's to report (it re-sends a DOWN daily).")
     except Exception as e:
         print(f"watchdog: health read error: {e}", file=sys.stderr)
 
