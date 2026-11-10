@@ -3223,9 +3223,11 @@ def scan_once(cfg, conn, dry_run=False, notify_existing=False, reseed=False, ful
             if EGRESS.get("country"):
                 msg += f" Runner egress country: {EGRESS['country']}."
             msg += " No alerts will fire until this recovers."
-            _since = meta_get(conn, "health_down_at", "")
-            if remind and _since:
-                msg = f"Still down since {_since[:16].replace('T', ' ')} UTC. " + msg
+            if remind:
+                # (a DOWN recorded by older code has no start time: it is at least a day old)
+                _since = meta_get(conn, "health_down_at", "")
+                msg = (f"Still down since {_since[:16].replace('T', ' ')} UTC. " if _since
+                       else "Still down (for over a day). ") + msg
             print(f"[{ts}] HEALTH DOWN{' (reminder)' if remind else ''}: {msg}", file=sys.stderr)
             _notified = True
             if webhook and not webhook.startswith("PASTE_"):

@@ -511,6 +511,13 @@ m.meta_set(conn, "health_notice_at", (m.datetime.now(m.timezone.utc) - m.timedel
 run([])
 ok("...but one still down a day after its last notice is announced again ('Still down since')",
    any("Still down since" in txt for _, txt in health))
+# the live DOWN of 2026-11-09 was recorded by older code: no health_down_at to quote
+health.clear()
+conn.execute("DELETE FROM meta WHERE key='health_down_at'")
+m.meta_set(conn, "health_notice_at", (m.datetime.now(m.timezone.utc) - m.timedelta(hours=25)).isoformat())
+run([])
+ok("...and one with no recorded start time still says it's still down",
+   any(txt.startswith("Still down (for over a day).") for _, txt in health))
 m.EBAY_BLOCK.update(fails=0, since=None, next_probe=0.0)
 run([L("1", "$200.00", 200.0)])
 
